@@ -39,6 +39,36 @@ struct QueueToolbarButton: View {
     }
 }
 
+/// A slim, always-visible banner surfacing paused/error state so generation
+/// problems aren't hidden behind the queue popover.
+struct GenerationStatusBanner: View {
+    @ObservedObject var queue: DrawThingsQueue
+
+    var body: some View {
+        if queue.isPaused {
+            banner(.orange, "pause.circle.fill",
+                   queue.lastError ?? "Generation paused.",
+                   actionTitle: "Resume") { queue.resume() }
+        } else if let latest = queue.errors.last {
+            banner(.red, "exclamationmark.triangle.fill",
+                   "Generation failed: \((latest.underlyingError as NSError).localizedDescription)",
+                   actionTitle: "Dismiss") { queue.clearErrors() }
+        }
+    }
+
+    private func banner(_ color: Color, _ symbol: String, _ text: String,
+                        actionTitle: String, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(color)
+            Text(text).font(.caption).lineLimit(2)
+            Spacer()
+            Button(actionTitle, action: action).font(.caption)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(color.opacity(0.12))
+    }
+}
+
 struct QueuePanel: View {
     @ObservedObject var queue: DrawThingsQueue
 

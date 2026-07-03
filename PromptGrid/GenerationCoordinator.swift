@@ -36,6 +36,24 @@ final class GenerationCoordinator: ObservableObject {
 
     var isConfigured: Bool { settings.isConfigured }
 
+    enum ConnectionOutcome: Equatable {
+        case success(String)
+        case failure(String)
+    }
+
+    /// Probe the server with the `echo` RPC (the same call generation makes
+    /// first). Tests the *given* settings so the user can verify before saving.
+    func testConnection(_ candidate: ServerSettings) async -> ConnectionOutcome {
+        do {
+            let service = try DrawThingsService(address: candidate.addressString, useTLS: candidate.useTLS)
+            let reply = try await service.echo(name: "PromptGrid")
+            let models = reply.files.count
+            return .success("Connected to \(candidate.addressString) over \(candidate.useTLS ? "TLS" : "plaintext"). Server reports \(models) model file\(models == 1 ? "" : "s").")
+        } catch {
+            return .failure("\(error.localizedDescription)\n\nTip: Draw Things' gRPC server usually runs in plaintext. If TLS is on, try turning it off (and vice versa).")
+        }
+    }
+
     // MARK: Settings
 
     func updateSettings(_ new: ServerSettings) {
@@ -62,9 +80,11 @@ final class GenerationCoordinator: ObservableObject {
             self.queue = queue
             connectionError = nil
             startConsuming(queue)
+            log("queue ready for \(settings.addressString) (TLS \(settings.useTLS ? "on" : "off"))")
         } catch {
             queue = nil
             connectionError = error.localizedDescription
+            log("queue creation failed: \(error.localizedDescription)")
         }
     }
 
@@ -77,7 +97,10 @@ final class GenerationCoordinator: ObservableObject {
     // MARK: Enqueue / cancel (the Phase 5 seam, now live)
 
     func enqueue(_ jobs: [GenerationJob], for store: ProjectStore) {
-        guard let queue else { return } // not configured — cells stay pending
+        guard let queue else {
+            log("enqueue skipped — no queue (server not configured)")
+            return
+        }
         let project = store.project
         let requests = jobs.map { job -> GenerationRequest in
             let prompt = project.prompts.first { $0.id == job.promptID }
@@ -85,7 +108,12 @@ final class GenerationCoordinator: ObservableObject {
             jobToPackageURL[job.id] = store.url
             return GenerationRequestBuilder.request(for: job, in: project, referenceImageData: referenceData)
         }
+        log("enqueueing \(requests.count) request(s) to \(settings.addressString)")
         queue.enqueue(requests)
+    }
+
+    private func log(_ message: String) {
+        print("[PromptGrid] \(message)")
     }
 
     func cancel(jobIDs: [UUID]) {
@@ -115,20 +143,26 @@ final class GenerationCoordinator: ObservableObject {
 
     private func handle(_ event: JobEvent) {
         switch event {
+        case .requestAdded(let request):
+            log("added: \(request.name)")
         case .requestStarted(let request):
+            log("started: \(request.name)")
             route(request.id) { $0.markGenerating(jobID: request.id) }
         case .requestCompleted(let result):
+            log("completed: \(result.request.name)")
             applyResult(result)
         case .requestFailed(let error):
             let message = (error.underlyingError as NSError).localizedDescription
+            log("FAILED: \(error.request.name) — \(message)")
             route(error.id) { $0.markFailed(jobID: error.id, message: message) }
             // Keep the routing entry — a retry reuses the same request id.
         case .requestCancelled(let id):
+            log("cancelled: \(id)")
             route(id) { $0.markCancelled(jobID: id) }
             finish(id)
         case .requestRemoved(let id):
             finish(id)
-        case .requestAdded, .requestProgress:
+        case .requestProgress:
             break
         }
     }

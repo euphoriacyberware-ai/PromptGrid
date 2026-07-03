@@ -17,6 +17,18 @@ struct ServerSettingsView: View {
     @State private var useTLS = false
     @State private var sharedSecret = ""
 
+    @State private var testOutcome: GenerationCoordinator.ConnectionOutcome?
+    @State private var isTesting = false
+
+    private var candidateSettings: ServerSettings {
+        ServerSettings(
+            host: host.trimmingCharacters(in: .whitespaces),
+            port: Int(portText) ?? ServerSettings.defaultPort,
+            useTLS: useTLS,
+            sharedSecret: sharedSecret
+        )
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -32,6 +44,31 @@ struct ServerSettingsView: View {
 #endif
                     Toggle("Use TLS", isOn: $useTLS)
                     TextField("Shared secret (optional)", text: $sharedSecret)
+                }
+
+                Section {
+                    Button {
+                        runTest()
+                    } label: {
+                        HStack {
+                            Label("Test Connection", systemImage: "bolt.horizontal.circle")
+                            if isTesting { Spacer(); ProgressView().controlSize(.small) }
+                        }
+                    }
+                    .disabled(host.trimmingCharacters(in: .whitespaces).isEmpty || isTesting)
+
+                    switch testOutcome {
+                    case .success(let message):
+                        Label(message, systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case .failure(let message):
+                        Label(message, systemImage: "xmark.octagon.fill")
+                            .foregroundStyle(.red)
+                            .fixedSize(horizontal: false, vertical: true)
+                    case nil:
+                        EmptyView()
+                    }
                 }
 
                 if let error = coordinator.connectionError {
@@ -66,6 +103,16 @@ struct ServerSettingsView: View {
             sharedSecret = coordinator.settings.sharedSecret
         }
         .frame(minWidth: 380, minHeight: 320)
+    }
+
+    private func runTest() {
+        isTesting = true
+        testOutcome = nil
+        Task {
+            let outcome = await coordinator.testConnection(candidateSettings)
+            testOutcome = outcome
+            isTesting = false
+        }
     }
 
     private func save() {

@@ -32,7 +32,10 @@ struct ProjectGridView: View {
     private var prompts: [Prompt] { store.project.prompts }
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            if let queue = coordinator.queue {
+                GenerationStatusBanner(queue: queue)
+            }
             if prompts.isEmpty {
                 emptyState
             } else {

@@ -13,6 +13,7 @@ import PromptGridCore
 
 struct ProjectGridView: View {
     @Bindable var store: ProjectStore
+    @EnvironmentObject private var coordinator: GenerationCoordinator
 
     @State private var promptPendingDeletion: Prompt?
     @State private var runPendingDeletion: Run?
@@ -49,6 +50,11 @@ struct ProjectGridView: View {
                     SeedPickerPopover(isPresented: $isPresentingSeedPicker) { seed, random in
                         createRun(seed: seed, seedWasRandom: random)
                     }
+                }
+            }
+            if let queue = coordinator.queue {
+                ToolbarItem {
+                    QueueToolbarButton(queue: queue)
                 }
             }
         }
@@ -196,14 +202,15 @@ struct ProjectGridView: View {
     }
 
     private func createRun(seed: Int, seedWasRandom: Bool) {
-        store.addRun(seed: seed, seedWasRandom: seedWasRandom)
+        let created = store.addRun(seed: seed, seedWasRandom: seedWasRandom)
         store.saveOrReport()
-        // Phase 6 wires the created jobs to the global DrawThingsQueue.
+        // Persist the pending records first, then submit to the shared queue.
+        coordinator.enqueue(created.jobs, for: store)
     }
 
     private func deleteRun(_ run: Run) {
-        // Phase 6 cancels in-flight jobs (store.cancellableJobIDs) in the queue
-        // before this removal, per §7 step 1.
+        // Cancel in-flight jobs in the queue *before* removing anything (§7 step 1).
+        coordinator.cancel(jobIDs: store.cancellableJobIDs(forRunID: run.id))
         store.deleteRun(id: run.id)
         store.saveOrReport()
     }

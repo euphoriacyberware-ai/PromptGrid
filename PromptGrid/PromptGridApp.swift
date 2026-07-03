@@ -10,9 +10,13 @@ import PromptGridCore
 
 @main
 struct PromptGridApp: App {
+    // One queue/coordinator for the whole app launch (Specification §2.3).
+    @StateObject private var coordinator = GenerationCoordinator()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(coordinator)
         }
     }
 }

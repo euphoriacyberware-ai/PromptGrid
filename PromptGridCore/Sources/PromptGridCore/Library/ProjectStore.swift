@@ -180,25 +180,51 @@ public final class ProjectStore {
     @discardableResult
     public func applyResult(jobID: UUID, imageData: Data, thumbnailData: Data,
                             completedAt: Date = Date()) -> Bool {
+        let imageName = "\(jobID).png"
+        let applied = updateJob(jobID) { job in
+            job.status = .completed
+            job.rank = .candidate
+            job.imageFilename = imageName
+            job.thumbnailFilename = imageName
+            job.completedAt = completedAt
+        }
+        if applied {
+            package.setImageData(imageData, named: imageName)
+            package.setThumbnailData(thumbnailData, named: imageName)
+        }
+        return applied
+    }
+
+    /// Mark a job as in-flight when the queue starts it.
+    @discardableResult
+    public func markGenerating(jobID: UUID) -> Bool {
+        updateJob(jobID) { $0.status = .generating }
+    }
+
+    /// Record a generation failure (the message is shown in the cell/inspector).
+    @discardableResult
+    public func markFailed(jobID: UUID, message: String) -> Bool {
+        updateJob(jobID) { $0.status = .failed(message: message) }
+    }
+
+    /// Record that a job was cancelled in the queue.
+    @discardableResult
+    public func markCancelled(jobID: UUID) -> Bool {
+        updateJob(jobID) { $0.status = .cancelled }
+    }
+
+    /// Find a job by id, apply `transform`, and write it back — unless the job or
+    /// its run no longer exists (the orphan guard, §7 step 2), in which case it
+    /// returns `false` and changes nothing.
+    @discardableResult
+    private func updateJob(_ jobID: UUID, _ transform: (inout GenerationJob) -> Void) -> Bool {
         guard let promptIndex = project.prompts.firstIndex(where: {
             $0.jobs.values.contains { $0.id == jobID }
-        }) else { return false }
-
-        guard var job = project.prompts[promptIndex].jobs.values.first(where: { $0.id == jobID })
+        }), var job = project.prompts[promptIndex].jobs.values.first(where: { $0.id == jobID }),
+              project.runs.contains(where: { $0.id == job.runID })
         else { return false }
 
-        // Orphan guard: the run may have been deleted while this was generating.
-        guard project.runs.contains(where: { $0.id == job.runID }) else { return false }
-
-        let imageName = "\(job.id).png"
-        package.setImageData(imageData, named: imageName)
-        package.setThumbnailData(thumbnailData, named: imageName)
-
-        job.status = .completed
-        job.rank = .candidate
-        job.imageFilename = imageName
-        job.thumbnailFilename = imageName
-        job.completedAt = completedAt
+        transform(&job)
         project.prompts[promptIndex].jobs[job.runID] = job
         return true
     }
@@ -213,5 +239,11 @@ public final class ProjectStore {
     public func imageData(for job: GenerationJob) -> Data? {
         guard let name = job.imageFilename else { return nil }
         return package.imageData(named: name)
+    }
+
+    /// A prompt's optional img2img/inpaint reference source, from `References/`.
+    public func referenceImageData(for prompt: Prompt) -> Data? {
+        guard let name = prompt.referenceImageFilename else { return nil }
+        return package.referenceData(named: name)
     }
 }

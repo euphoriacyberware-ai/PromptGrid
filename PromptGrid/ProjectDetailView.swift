@@ -13,6 +13,7 @@ struct ProjectDetailView: View {
     let item: ProjectListItem
     let library: ProjectLibrary
 
+    @EnvironmentObject private var coordinator: GenerationCoordinator
     @State private var store: ProjectStore?
     @State private var loadError: String?
 
@@ -43,13 +44,16 @@ struct ProjectDetailView: View {
             }
         }
         .task(id: item.id) { open() }
+        .onDisappear { coordinator.setActiveStore(nil) }
     }
 
     private func open() {
         store = nil
         loadError = nil
         do {
-            store = try ProjectStore(contentsOf: item.url)
+            let store = try ProjectStore(contentsOf: item.url)
+            self.store = store
+            coordinator.setActiveStore(store)
         } catch {
             loadError = error.localizedDescription
         }

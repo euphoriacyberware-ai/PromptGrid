@@ -12,12 +12,14 @@ import PromptGridCore
 /// in the library folder, and a detail pane for the selection. The grid itself
 /// arrives in Phase 4.
 struct ContentView: View {
+    @EnvironmentObject private var coordinator: GenerationCoordinator
     @State private var library = ProjectLibrary()
     @State private var selection: ProjectListItem.ID?
 
     @State private var isPresentingNewProject = false
     @State private var newProjectName = ""
     @State private var projectPendingDeletion: ProjectListItem?
+    @State private var isPresentingSettings = false
 
     var body: some View {
         NavigationSplitView {
@@ -51,6 +53,13 @@ struct ContentView: View {
                         Label("New Project", systemImage: "plus")
                     }
                 }
+                ToolbarItem {
+                    Button {
+                        isPresentingSettings = true
+                    } label: {
+                        Label("Server Settings", systemImage: "gearshape")
+                    }
+                }
             }
 #if os(macOS)
             .navigationSplitViewColumnWidth(min: 200, ideal: 240)
@@ -67,6 +76,9 @@ struct ContentView: View {
             }
         }
         .task { library.start() }
+        .sheet(isPresented: $isPresentingSettings) {
+            ServerSettingsView()
+        }
         .alert("New Project", isPresented: $isPresentingNewProject) {
             TextField("Name", text: $newProjectName)
             Button("Create") { createProject() }

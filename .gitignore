@@ -15,6 +15,9 @@ xcuserdata/
 # Swift Package Manager
 .build/
 .swiftpm/
+# Local package resolution is driven by the Xcode workspace; the copy that
+# `swift test` writes next to PromptGridCore/Package.swift is redundant.
+/PromptGridCore/Package.resolved
 # Note: the Xcode-managed Package.resolved under
 # PromptGrid.xcodeproj/.../swiftpm/ is intentionally kept tracked to pin
 # dependency versions.

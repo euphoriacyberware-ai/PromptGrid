@@ -93,6 +93,15 @@ final class GenerationCoordinator: ObservableObject {
         for id in jobIDs { _ = queue.cancel(id: id) }
     }
 
+    /// Retry a failed cell. In-session this is `queue.retry` so the queue's
+    /// retryCount increments (§9). If the queue no longer knows the request
+    /// (e.g. after relaunch — queue state isn't persisted), rebuild it from the
+    /// frozen job and enqueue afresh.
+    func retry(_ job: GenerationJob, in store: ProjectStore) {
+        if let queue, queue.retry(job.id) { return }
+        enqueue([job], for: store)
+    }
+
     // MARK: Result routing
 
     private func startConsuming(_ queue: DrawThingsQueue) {
@@ -113,7 +122,7 @@ final class GenerationCoordinator: ObservableObject {
         case .requestFailed(let error):
             let message = (error.underlyingError as NSError).localizedDescription
             route(error.id) { $0.markFailed(jobID: error.id, message: message) }
-            finish(error.id)
+            // Keep the routing entry — a retry reuses the same request id.
         case .requestCancelled(let id):
             route(id) { $0.markCancelled(jobID: id) }
             finish(id)

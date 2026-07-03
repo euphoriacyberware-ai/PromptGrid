@@ -16,11 +16,13 @@ struct ProjectDetailView: View {
     @EnvironmentObject private var coordinator: GenerationCoordinator
     @State private var store: ProjectStore?
     @State private var loadError: String?
+    @State private var selectedCell: CellRef?
+    @State private var lightboxCell: CellRef?
 
     var body: some View {
         Group {
             if let store {
-                ProjectGridView(store: store)
+                gridWithInspector(store)
                     .navigationTitle(store.project.name)
                     .alert(
                         "Couldn’t Save",
@@ -47,9 +49,34 @@ struct ProjectDetailView: View {
         .onDisappear { coordinator.setActiveStore(nil) }
     }
 
+    @ViewBuilder
+    private func gridWithInspector(_ store: ProjectStore) -> some View {
+        ProjectGridView(
+            store: store,
+            selectedCell: $selectedCell,
+            onOpenLightbox: { lightboxCell = $0 }
+        )
+        .inspector(isPresented: Binding(
+            get: { selectedCell != nil },
+            set: { if !$0 { selectedCell = nil } }
+        )) {
+            if let selectedCell {
+                CellInspector(store: store, cell: selectedCell)
+                    .inspectorColumnWidth(min: 260, ideal: 300, max: 380)
+            } else {
+                Text("Select a cell").foregroundStyle(.secondary)
+            }
+        }
+        .sheet(item: $lightboxCell) { cell in
+            LightboxView(store: store, current: cell) { lightboxCell = nil }
+        }
+    }
+
     private func open() {
         store = nil
         loadError = nil
+        selectedCell = nil
+        lightboxCell = nil
         do {
             let store = try ProjectStore(contentsOf: item.url)
             self.store = store

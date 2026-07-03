@@ -196,6 +196,58 @@ public final class ProjectStore {
         }
     }
 
+    /// Create a job for a single empty cell (a prompt added after the run
+    /// existed, §7). Freezes the resolved prompts, settings, and the run's seed
+    /// now, exactly like `addRun`. Returns the job to enqueue, or `nil` if the
+    /// cell already has one.
+    @discardableResult
+    public func generateCell(promptID: UUID, runID: UUID) -> GenerationJob? {
+        guard let promptIndex = project.prompts.firstIndex(where: { $0.id == promptID }),
+              let run = project.runs.first(where: { $0.id == runID }),
+              project.prompts[promptIndex].jobs[runID] == nil
+        else { return nil }
+
+        let prompt = project.prompts[promptIndex]
+        let job = GenerationJob(
+            runID: runID,
+            promptID: promptID,
+            status: .pending,
+            seedUsed: run.seed,
+            settingsSnapshot: prompt.settings,
+            resolvedPrompt: WildcardResolver.resolve(prompt.text),
+            resolvedNegativePrompt: WildcardResolver.resolve(prompt.negativePrompt)
+        )
+        project.prompts[promptIndex].jobs[runID] = job
+        return job
+    }
+
+    // MARK: Ranking (Specification §10)
+
+    /// The single coordinating method for ranks. Setting `.final` first demotes
+    /// any other `.final` job **in the same prompt** to `.shortlisted`, so at most
+    /// one job per prompt (across all its runs) is ever `.final`. No other code
+    /// path sets `.final` directly.
+    public func setRank(jobID: UUID, to rank: CellRank?) {
+        guard let promptIndex = project.prompts.firstIndex(where: {
+            $0.jobs.values.contains { $0.id == jobID }
+        }) else { return }
+
+        if rank == .final {
+            for (runID, job) in project.prompts[promptIndex].jobs
+            where job.id != jobID && job.rank == .final {
+                var demoted = job
+                demoted.rank = .shortlisted
+                project.prompts[promptIndex].jobs[runID] = demoted
+            }
+        }
+
+        if let entry = project.prompts[promptIndex].jobs.first(where: { $0.value.id == jobID }) {
+            var job = entry.value
+            job.rank = rank
+            project.prompts[promptIndex].jobs[entry.key] = job
+        }
+    }
+
     // MARK: Results
 
     /// Apply a finished generation to its job. Returns `false` — writing nothing —

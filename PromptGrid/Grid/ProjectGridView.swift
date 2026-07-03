@@ -13,6 +13,8 @@ import PromptGridCore
 
 struct ProjectGridView: View {
     @Bindable var store: ProjectStore
+    @Binding var selectedCell: CellRef?
+    let onOpenLightbox: (CellRef) -> Void
     @EnvironmentObject private var coordinator: GenerationCoordinator
 
     @State private var promptPendingDeletion: Prompt?
@@ -142,12 +144,22 @@ struct ProjectGridView: View {
         HStack(alignment: .top, spacing: spacing) {
             promptCell(prompt)
             ForEach(runs) { run in
+                let ref = CellRef(promptID: prompt.id, runID: run.id)
                 let job = prompt.jobs[run.id]
                 GridCellView(
                     job: job,
                     thumbnailData: job.flatMap { store.thumbnailData(for: $0) },
                     size: cellSize
                 )
+                .overlay {
+                    if selectedCell == ref {
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) { onOpenLightbox(ref) }
+                .onTapGesture(count: 1) { selectedCell = ref }
             }
         }
         .contextMenu {

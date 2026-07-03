@@ -22,6 +22,47 @@
 import Foundation
 import DrawThingsClient
 
+// MARK: - Flexible enum decoding
+
+/// Decode an `Int8` enum raw value that may appear as a JSON number, a numeric
+/// string, or a **case-name string** — Draw Things exports some enums as names
+/// (e.g. a LoRA `"mode":"all"`), so a config pasted straight from Draw Things
+/// must decode. We still *encode* the canonical `Int8`, so saved files are
+/// unaffected.
+enum FlexibleEnum {
+    static func int8<K: CodingKey>(
+        _ container: KeyedDecodingContainer<K>,
+        forKey key: K,
+        names describe: (Int8) -> String?,
+        range: ClosedRange<Int8>,
+        default fallback: Int8
+    ) -> Int8 {
+        if let value = try? container.decode(Int8.self, forKey: key) { return value }
+        if let string = try? container.decode(String.self, forKey: key) {
+            let target = string.lowercased()
+            for raw in range where describe(raw)?.lowercased() == target { return raw }
+            if let numeric = Int8(string) { return numeric }
+        }
+        return fallback
+    }
+}
+
+private func loraModeName(_ raw: Int8) -> String? {
+    LoRAMode(rawValue: raw).map { String(describing: $0) }
+}
+
+private func controlModeName(_ raw: Int8) -> String? {
+    ControlMode(rawValue: raw).map { String(describing: $0) }
+}
+
+private func samplerName(_ raw: Int8) -> String? {
+    SamplerType(rawValue: raw).map { String(describing: $0) }
+}
+
+private func compressionName(_ raw: Int8) -> String? {
+    CompressionMethod(rawValue: raw).map { String(describing: $0) }
+}
+
 // MARK: - Nested configs
 
 public struct LoRAConfigDTO: Codable, Sendable, Equatable, Hashable {
@@ -44,6 +85,19 @@ public struct LoRAConfigDTO: Codable, Sendable, Equatable, Hashable {
 
     public var loraConfig: LoRAConfig {
         LoRAConfig(file: file, weight: weight, mode: LoRAMode(rawValue: mode) ?? .all)
+    }
+
+    private enum CodingKeys: String, CodingKey { case file, weight, mode }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        file = try c.decodeIfPresent(String.self, forKey: .file) ?? ""
+        weight = try c.decodeIfPresent(Float.self, forKey: .weight) ?? 1.0
+        mode = FlexibleEnum.int8(
+            c, forKey: .mode, names: loraModeName,
+            range: LoRAMode.min.rawValue...LoRAMode.max.rawValue,
+            default: LoRAMode.all.rawValue
+        )
     }
 }
 
@@ -78,6 +132,23 @@ public struct ControlConfigDTO: Codable, Sendable, Equatable, Hashable {
             guidanceStart: guidanceStart,
             guidanceEnd: guidanceEnd,
             controlMode: ControlMode(rawValue: controlMode) ?? .balanced
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case file, weight, guidanceStart, guidanceEnd, controlMode
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        file = try c.decodeIfPresent(String.self, forKey: .file) ?? ""
+        weight = try c.decodeIfPresent(Float.self, forKey: .weight) ?? 1.0
+        guidanceStart = try c.decodeIfPresent(Float.self, forKey: .guidanceStart) ?? 0.0
+        guidanceEnd = try c.decodeIfPresent(Float.self, forKey: .guidanceEnd) ?? 1.0
+        controlMode = FlexibleEnum.int8(
+            c, forKey: .controlMode, names: controlModeName,
+            range: ControlMode.min.rawValue...ControlMode.max.rawValue,
+            default: ControlMode.balanced.rawValue
         )
     }
 }
@@ -405,7 +476,11 @@ public struct DrawThingsConfigurationDTO: Codable, Sendable, Equatable {
         height = try v(.height, d.height)
         steps = try v(.steps, d.steps)
         model = try v(.model, d.model)
-        sampler = try v(.sampler, d.sampler.rawValue)
+        sampler = FlexibleEnum.int8(
+            c, forKey: .sampler, names: samplerName,
+            range: SamplerType.min.rawValue...SamplerType.max.rawValue,
+            default: d.sampler.rawValue
+        )
         guidanceScale = try v(.guidanceScale, d.guidanceScale)
         // `seed` is optional in the model; treat a present explicit null as nil.
         seed = try c.decodeIfPresent(Int64.self, forKey: .seed) ?? d.seed
@@ -422,7 +497,11 @@ public struct DrawThingsConfigurationDTO: Codable, Sendable, Equatable {
         speedUpWithGuidanceEmbed = try v(.speedUpWithGuidanceEmbed, d.speedUpWithGuidanceEmbed)
         cfgZeroStar = try v(.cfgZeroStar, d.cfgZeroStar)
         cfgZeroInitSteps = try v(.cfgZeroInitSteps, d.cfgZeroInitSteps)
-        compressionArtifacts = try v(.compressionArtifacts, d.compressionArtifacts.rawValue)
+        compressionArtifacts = FlexibleEnum.int8(
+            c, forKey: .compressionArtifacts, names: compressionName,
+            range: CompressionMethod.min.rawValue...CompressionMethod.max.rawValue,
+            default: d.compressionArtifacts.rawValue
+        )
         compressionArtifactsQuality = try v(.compressionArtifactsQuality, d.compressionArtifactsQuality)
         maskBlur = try v(.maskBlur, d.maskBlur)
         maskBlurOutset = try v(.maskBlurOutset, d.maskBlurOutset)

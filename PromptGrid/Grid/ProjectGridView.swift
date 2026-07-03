@@ -15,6 +15,8 @@ struct ProjectGridView: View {
     @Bindable var store: ProjectStore
 
     @State private var promptPendingDeletion: Prompt?
+    @State private var runPendingDeletion: Run?
+    @State private var isPresentingSeedPicker = false
 
     private let promptColumnWidth: CGFloat = 260
     private let cellSize: CGFloat = 120
@@ -37,6 +39,18 @@ struct ProjectGridView: View {
                     Label("Add Prompt", systemImage: "plus.rectangle")
                 }
             }
+            ToolbarItem {
+                Button {
+                    isPresentingSeedPicker = true
+                } label: {
+                    Label("New Run", systemImage: "plus.rectangle.on.rectangle")
+                }
+                .popover(isPresented: $isPresentingSeedPicker, arrowEdge: .bottom) {
+                    SeedPickerPopover(isPresented: $isPresentingSeedPicker) { seed, random in
+                        createRun(seed: seed, seedWasRandom: random)
+                    }
+                }
+            }
         }
         .confirmationDialog(
             "Delete Prompt?",
@@ -50,6 +64,19 @@ struct ProjectGridView: View {
             Button("Cancel", role: .cancel) {}
         } message: { prompt in
             Text(deleteMessage(for: prompt))
+        }
+        .confirmationDialog(
+            runPendingDeletion.map { "Delete Run \($0.index)?" } ?? "Delete Run?",
+            isPresented: Binding(
+                get: { runPendingDeletion != nil },
+                set: { if !$0 { runPendingDeletion = nil } }
+            ),
+            presenting: runPendingDeletion
+        ) { run in
+            Button("Delete Run", role: .destructive) { deleteRun(run) }
+            Button("Cancel", role: .cancel) {}
+        } message: { run in
+            Text(deleteMessage(for: run))
         }
     }
 
@@ -82,6 +109,15 @@ struct ProjectGridView: View {
                         Text(run.seedWasRandom ? "random" : "fixed")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                        Text("\(run.seed)")
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+                .contextMenu {
+                    Button("Delete Run", role: .destructive) {
+                        runPendingDeletion = run
                     }
                 }
             }
@@ -159,11 +195,29 @@ struct ProjectGridView: View {
         store.saveOrReport()
     }
 
+    private func createRun(seed: Int, seedWasRandom: Bool) {
+        store.addRun(seed: seed, seedWasRandom: seedWasRandom)
+        store.saveOrReport()
+        // Phase 6 wires the created jobs to the global DrawThingsQueue.
+    }
+
+    private func deleteRun(_ run: Run) {
+        // Phase 6 cancels in-flight jobs (store.cancellableJobIDs) in the queue
+        // before this removal, per §7 step 1.
+        store.deleteRun(id: run.id)
+        store.saveOrReport()
+    }
+
     private func deleteMessage(for prompt: Prompt) -> String {
         let completed = prompt.jobs.values.filter { $0.status == .completed }.count
         if completed > 0 {
             return "This deletes \(completed) generated image\(completed == 1 ? "" : "s"). This can’t be undone."
         }
         return "This row hasn’t generated any images yet."
+    }
+
+    private func deleteMessage(for run: Run) -> String {
+        let count = store.completedImageCount(forRunID: run.id)
+        return "This deletes \(count) generated image\(count == 1 ? "" : "s"). This can’t be undone."
     }
 }

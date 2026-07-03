@@ -101,6 +101,30 @@ public final class ProjectStore {
         }
     }
 
+    /// Apply an edit to a prompt's non-frozen fields (text, negative prompt,
+    /// settings). Existing jobs are historical records and are never touched (§4).
+    public func updatePrompt(id: UUID, _ transform: (inout Prompt) -> Void) {
+        guard let index = project.prompts.firstIndex(where: { $0.id == id }) else { return }
+        transform(&project.prompts[index])
+    }
+
+    /// Set a prompt's reference image (img2img/inpaint source), writing it into
+    /// `References/` keyed by the prompt id.
+    public func setReferenceImage(promptID: UUID, data: Data) {
+        guard let index = project.prompts.firstIndex(where: { $0.id == promptID }) else { return }
+        let name = "\(promptID).png"
+        package.setReferenceData(data, named: name)
+        project.prompts[index].referenceImageFilename = name
+    }
+
+    public func clearReferenceImage(promptID: UUID) {
+        guard let index = project.prompts.firstIndex(where: { $0.id == promptID }) else { return }
+        if let name = project.prompts[index].referenceImageFilename {
+            package.removeReference(named: name)
+        }
+        project.prompts[index].referenceImageFilename = nil
+    }
+
     // MARK: Run (column) mutations
 
     /// Create a run and, for every existing prompt, a frozen `pending` job

@@ -18,6 +18,9 @@ struct ProjectGridView: View {
     @State private var promptPendingDeletion: Prompt?
     @State private var runPendingDeletion: Run?
     @State private var isPresentingSeedPicker = false
+    @State private var editingPrompt: EditingPrompt?
+
+    private struct EditingPrompt: Identifiable { let id: UUID }
 
     private let promptColumnWidth: CGFloat = 260
     private let cellSize: CGFloat = 120
@@ -83,6 +86,9 @@ struct ProjectGridView: View {
             Button("Cancel", role: .cancel) {}
         } message: { run in
             Text(deleteMessage(for: run))
+        }
+        .sheet(item: $editingPrompt) { editing in
+            PromptDetailEditor(store: store, promptID: editing.id)
         }
     }
 
@@ -152,24 +158,39 @@ struct ProjectGridView: View {
     }
 
     private func promptCell(_ prompt: Prompt) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Row \(prompt.order + 1)")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            if prompt.text.isEmpty {
-                Text("Empty prompt")
-                    .italic()
-                    .foregroundStyle(.secondary)
-            } else {
-                // Static, truncated by default (§13); live editing is Phase 7.
-                Text(prompt.text)
-                    .lineLimit(4)
-                    .truncationMode(.tail)
+        Button {
+            editingPrompt = EditingPrompt(id: prompt.id)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Row \(prompt.order + 1)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    if prompt.referenceImageFilename != nil {
+                        Image(systemName: "photo").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    Image(systemName: "pencil").font(.caption2).foregroundStyle(.tertiary)
+                }
+                if prompt.text.isEmpty {
+                    Text("Empty prompt — tap to edit")
+                        .italic()
+                        .foregroundStyle(.secondary)
+                } else {
+                    // Static, truncated by default (§13); tap opens the live editor.
+                    Text(prompt.text)
+                        .lineLimit(4)
+                        .truncationMode(.tail)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
             }
+            .frame(width: promptColumnWidth, height: cellSize, alignment: .topLeading)
+            .padding(8)
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+            .contentShape(Rectangle())
         }
-        .frame(width: promptColumnWidth, height: cellSize, alignment: .topLeading)
-        .padding(8)
-        .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+        .buttonStyle(.plain)
     }
 
     private func cellFrame<Content: View>(width: CGFloat, @ViewBuilder _ content: () -> Content) -> some View {

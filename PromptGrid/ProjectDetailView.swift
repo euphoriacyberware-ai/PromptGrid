@@ -2,8 +2,8 @@
 //  ProjectDetailView.swift
 //  PromptGrid
 //
-//  Placeholder detail pane for a selected project. Loads the manifest to prove
-//  the open path works; the real prompt grid arrives in Phase 4.
+//  Loads the selected project into an editable `ProjectStore` and hosts its grid
+//  (Specification §6). Opening happens per-selection; the store owns save-back.
 //
 
 import SwiftUI
@@ -13,24 +13,25 @@ struct ProjectDetailView: View {
     let item: ProjectListItem
     let library: ProjectLibrary
 
-    @State private var project: Project?
+    @State private var store: ProjectStore?
     @State private var loadError: String?
 
     var body: some View {
         Group {
-            if let project {
-                VStack(spacing: 12) {
-                    Image(systemName: "square.grid.3x3")
-                        .font(.system(size: 48))
-                        .foregroundStyle(.secondary)
-                    Text(project.name).font(.title2).bold()
-                    Text("\(project.prompts.count) prompts · \(project.runs.count) runs")
-                        .foregroundStyle(.secondary)
-                    Text("The prompt grid arrives in Phase 4.")
-                        .font(.callout)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding()
+            if let store {
+                ProjectGridView(store: store)
+                    .navigationTitle(store.project.name)
+                    .alert(
+                        "Couldn’t Save",
+                        isPresented: Binding(
+                            get: { store.lastError != nil },
+                            set: { if !$0 { store.lastError = nil } }
+                        )
+                    ) {
+                        Button("OK", role: .cancel) {}
+                    } message: {
+                        Text(store.lastError ?? "")
+                    }
             } else if let loadError {
                 ContentUnavailableView(
                     "Couldn’t Open Project",
@@ -41,15 +42,14 @@ struct ProjectDetailView: View {
                 ProgressView()
             }
         }
-        .navigationTitle(project?.name ?? item.displayName)
-        .task(id: item.id) { load() }
+        .task(id: item.id) { open() }
     }
 
-    private func load() {
-        project = nil
+    private func open() {
+        store = nil
         loadError = nil
         do {
-            project = try library.loadProject(item)
+            store = try ProjectStore(contentsOf: item.url)
         } catch {
             loadError = error.localizedDescription
         }

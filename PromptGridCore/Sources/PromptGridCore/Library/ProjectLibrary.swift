@@ -84,7 +84,7 @@ public final class ProjectLibrary {
         let url = uniquePackageURL(forName: name)
         let project = Project(name: url.deletingPathExtension().lastPathComponent)
         let wrapper = try ProjectPackage(project: project).fileWrapper()
-        try coordinatedWrite(wrapper, to: url)
+        try FileCoordination.write(wrapper, to: url)
         refresh()
         return ProjectListItem(
             url: url,
@@ -94,28 +94,16 @@ public final class ProjectLibrary {
     }
 
     public func deleteProject(_ item: ProjectListItem) throws {
-        try coordinatedDelete(item.url)
+        try FileCoordination.delete(at: item.url)
         refresh()
     }
 
-    /// Read a project's manifest. (Phase 4 uses this to populate the grid.)
+    /// Read a project's manifest.
     public func loadProject(_ item: ProjectListItem) throws -> Project {
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var thrown: Error?
-        var project: Project?
-        coordinator.coordinate(readingItemAt: item.url, options: [], error: &coordinationError) { url in
-            do {
-                let wrapper = try FileWrapper(url: url, options: .immediate)
-                project = try ProjectPackage(readingFrom: wrapper).project
-            } catch {
-                thrown = error
-            }
+        try FileCoordination.read(at: item.url) { url in
+            let wrapper = try FileWrapper(url: url, options: .immediate)
+            return try ProjectPackage(readingFrom: wrapper).project
         }
-        if let coordinationError { throw coordinationError }
-        if let thrown { throw thrown }
-        guard let project else { throw LibraryError.couldNotReadProject }
-        return project
     }
 
     // MARK: Helpers
@@ -142,29 +130,5 @@ public final class ProjectLibrary {
             counter += 1
         }
         return candidate
-    }
-
-    private func coordinatedWrite(_ wrapper: FileWrapper, to url: URL) throws {
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var thrown: Error?
-        coordinator.coordinate(writingItemAt: url, options: .forReplacing, error: &coordinationError) { url in
-            do { try wrapper.write(to: url, options: .atomic, originalContentsURL: nil) }
-            catch { thrown = error }
-        }
-        if let coordinationError { throw coordinationError }
-        if let thrown { throw thrown }
-    }
-
-    private func coordinatedDelete(_ url: URL) throws {
-        let coordinator = NSFileCoordinator()
-        var coordinationError: NSError?
-        var thrown: Error?
-        coordinator.coordinate(writingItemAt: url, options: .forDeleting, error: &coordinationError) { url in
-            do { try FileManager.default.removeItem(at: url) }
-            catch { thrown = error }
-        }
-        if let coordinationError { throw coordinationError }
-        if let thrown { throw thrown }
     }
 }

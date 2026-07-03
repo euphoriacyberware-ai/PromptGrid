@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		A4C0C3EF2FF7EA8E0040FC28 /* DrawThingsQueue in Frameworks */ = {isa = PBXBuildFile; productRef = A4C0C3EE2FF7EA8E0040FC28 /* DrawThingsQueue */; };
+		B10000000000000000C00001 /* PromptGridCore in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000C00005 /* PromptGridCore */; };
+		B10000000000000000C00002 /* DrawThingsClient in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000C00006 /* DrawThingsClient */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -57,6 +59,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A4C0C3EF2FF7EA8E0040FC28 /* DrawThingsQueue in Frameworks */,
+				B10000000000000000C00001 /* PromptGridCore in Frameworks */,
+				B10000000000000000C00002 /* DrawThingsClient in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -118,6 +122,8 @@
 			name = PromptGrid;
 			packageProductDependencies = (
 				A4C0C3EE2FF7EA8E0040FC28 /* DrawThingsQueue */,
+				B10000000000000000C00005 /* PromptGridCore */,
+				B10000000000000000C00006 /* DrawThingsClient */,
 			);
 			productName = PromptGrid;
 			productReference = A4C0C3C12FF7E9CE0040FC28 /* PromptGrid.app */;
@@ -203,6 +209,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A4C0C3ED2FF7EA8E0040FC28 /* XCRemoteSwiftPackageReference "DrawThingsQueue" */,
+				B10000000000000000C00004 /* XCRemoteSwiftPackageReference "DT-gRPC-Swift-Client" */,
+				B10000000000000000C00003 /* XCLocalSwiftPackageReference "PromptGridCore" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A4C0C3C22FF7E9CE0040FC28 /* Products */;
@@ -432,7 +440,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.5;
 			};
@@ -476,7 +484,7 @@
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				XROS_DEPLOYMENT_TARGET = 26.5;
 			};
@@ -501,7 +509,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PromptGrid.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PromptGrid";
 				XROS_DEPLOYMENT_TARGET = 26.5;
@@ -527,7 +535,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PromptGrid.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PromptGrid";
 				XROS_DEPLOYMENT_TARGET = 26.5;
@@ -552,7 +560,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_TARGET_NAME = PromptGrid;
 				XROS_DEPLOYMENT_TARGET = 26.5;
@@ -577,7 +585,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
-				SWIFT_VERSION = 5.0;
+				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
 				TEST_TARGET_NAME = PromptGrid;
 				XROS_DEPLOYMENT_TARGET = 26.5;
@@ -625,10 +633,25 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		B10000000000000000C00003 /* XCLocalSwiftPackageReference "PromptGridCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = PromptGridCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		A4C0C3ED2FF7EA8E0040FC28 /* XCRemoteSwiftPackageReference "DrawThingsQueue" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/euphoriacyberware-ai/DrawThingsQueue";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		B10000000000000000C00004 /* XCRemoteSwiftPackageReference "DT-gRPC-Swift-Client" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/euphoriacyberware-ai/DT-gRPC-Swift-Client";
 			requirement = {
 				branch = main;
 				kind = branch;
@@ -641,6 +664,15 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A4C0C3ED2FF7EA8E0040FC28 /* XCRemoteSwiftPackageReference "DrawThingsQueue" */;
 			productName = DrawThingsQueue;
+		};
+		B10000000000000000C00005 /* PromptGridCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PromptGridCore;
+		};
+		B10000000000000000C00006 /* DrawThingsClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000C00004 /* XCRemoteSwiftPackageReference "DT-gRPC-Swift-Client" */;
+			productName = DrawThingsClient;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

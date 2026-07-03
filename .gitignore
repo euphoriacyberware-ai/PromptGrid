@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+# Note: the Xcode-managed Package.resolved under
+# PromptGrid.xcodeproj/.../swiftpm/ is intentionally kept tracked to pin
+# dependency versions.

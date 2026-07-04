@@ -50,12 +50,15 @@ public protocol LibraryScanning: AnyObject, Sendable {
     func stop()
 }
 
-/// Watches a local directory with a kernel file-system event source. All mutable
-/// state is confined to `queue`, so the type is safely `@unchecked Sendable`.
+/// Watches a directory two ways: a kernel file-system event source (immediate
+/// local changes) and an `NSFilePresenter` (coordinated changes from other
+/// processes / iCloud sync). All mutable state is confined to `queue`, so the
+/// type is safely `@unchecked Sendable`.
 public final class DirectoryLibraryScanner: LibraryScanning, @unchecked Sendable {
     private let directoryURL: URL
     private let queue = DispatchQueue(label: "com.euphoria-ai.PromptGrid.library-scanner")
     private var source: DispatchSourceFileSystemObject?
+    private var presenter: LibraryFilePresenter?
 
     public init(directoryURL: URL) {
         self.directoryURL = directoryURL
@@ -65,16 +68,21 @@ public final class DirectoryLibraryScanner: LibraryScanning, @unchecked Sendable
         queue.async { [weak self] in
             guard let self, self.source == nil else { return }
             let fd = open(self.directoryURL.path, O_EVTONLY)
-            guard fd >= 0 else { return }
-            let src = DispatchSource.makeFileSystemObjectSource(
-                fileDescriptor: fd,
-                eventMask: [.write, .delete, .rename, .revoke],
-                queue: self.queue
-            )
-            src.setEventHandler { onChange() }
-            src.setCancelHandler { close(fd) }
-            self.source = src
-            src.resume()
+            if fd >= 0 {
+                let src = DispatchSource.makeFileSystemObjectSource(
+                    fileDescriptor: fd,
+                    eventMask: [.write, .delete, .rename, .revoke],
+                    queue: self.queue
+                )
+                src.setEventHandler { onChange() }
+                src.setCancelHandler { close(fd) }
+                self.source = src
+                src.resume()
+            }
+
+            let presenter = LibraryFilePresenter(url: self.directoryURL, onChange: onChange)
+            NSFileCoordinator.addFilePresenter(presenter)
+            self.presenter = presenter
         }
     }
 
@@ -82,6 +90,27 @@ public final class DirectoryLibraryScanner: LibraryScanning, @unchecked Sendable
         queue.async { [weak self] in
             self?.source?.cancel()
             self?.source = nil
+            if let presenter = self?.presenter {
+                NSFileCoordinator.removeFilePresenter(presenter)
+                self?.presenter = nil
+            }
         }
     }
+}
+
+/// Bridges `NSFilePresenter` change callbacks (coordinated / iCloud writes) into
+/// a plain change signal.
+final class LibraryFilePresenter: NSObject, NSFilePresenter {
+    let presentedItemURL: URL?
+    let presentedItemOperationQueue = OperationQueue()
+    private let onChange: @Sendable () -> Void
+
+    init(url: URL, onChange: @escaping @Sendable () -> Void) {
+        self.presentedItemURL = url
+        self.onChange = onChange
+        super.init()
+    }
+
+    func presentedItemDidChange() { onChange() }
+    func presentedSubitemDidChange(at url: URL) { onChange() }
 }

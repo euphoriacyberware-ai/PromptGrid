@@ -45,7 +45,7 @@ struct ProjectDetailView: View {
                 ProgressView()
             }
         }
-        .task(id: item.id) { open() }
+        .task(id: item.id) { await open() }
         .onDisappear { coordinator.setActiveStore(nil) }
     }
 
@@ -78,13 +78,17 @@ struct ProjectDetailView: View {
 #endif
     }
 
-    private func open() {
+    private func open() async {
         store = nil
         loadError = nil
         selectedCell = nil
         lightboxCell = nil
+        // Download any iCloud placeholders off the main thread first (no-op for a
+        // local library) so the package's images read fully.
+        let url = item.url
+        await Task.detached { FileMaterializer.materializeContents(of: url) }.value
         do {
-            let store = try ProjectStore(contentsOf: item.url)
+            let store = try ProjectStore(contentsOf: url)
             self.store = store
             coordinator.setActiveStore(store)
         } catch {

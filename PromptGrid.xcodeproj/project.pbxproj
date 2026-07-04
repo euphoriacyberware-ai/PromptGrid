@@ -35,9 +35,22 @@
 		A4C0C3DA2FF7E9CF0040FC28 /* PromptGridUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PromptGridUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		B10000000000000000C00007 /* Exceptions for "PromptGrid" folder in "PromptGrid" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A4C0C3C02FF7E9CE0040FC28 /* PromptGrid */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A4C0C3C32FF7E9CE0040FC28 /* PromptGrid */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B10000000000000000C00007 /* Exceptions for "PromptGrid" folder in "PromptGrid" target */,
+			);
 			path = PromptGrid;
 			sourceTree = "<group>";
 		};
@@ -415,6 +428,7 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
+				INFOPLIST_FILE = "PromptGrid/Info.plist";
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
@@ -460,6 +474,7 @@
 				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
+				INFOPLIST_FILE = "PromptGrid/Info.plist";
 				GENERATE_INFOPLIST_FILE = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;

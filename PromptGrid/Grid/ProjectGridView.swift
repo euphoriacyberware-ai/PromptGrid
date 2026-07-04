@@ -25,6 +25,7 @@ struct ProjectGridView: View {
     @State private var cellPendingDeletion: CellRef?
     @State private var isConfirmingGenerateMissing = false
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
+    @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
 
     private var missingCount: Int { store.missingCellCount() }
 
@@ -285,7 +286,7 @@ struct ProjectGridView: View {
     }
 
     private func generateMissing() {
-        let created = store.generateMissing()
+        let created = store.generateMissing(order: generateMissingOrder)
         store.saveOrReport()
         coordinator.enqueue(created, for: store)
     }

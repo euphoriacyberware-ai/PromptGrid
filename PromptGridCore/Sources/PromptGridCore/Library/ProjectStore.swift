@@ -242,13 +242,19 @@ public final class ProjectStore {
     /// first to regenerate it. Wildcards re-roll and current settings/seed are
     /// snapshotted per cell, exactly like single-cell generate.
     @discardableResult
-    public func generateMissing() -> [GenerationJob] {
+    public func generateMissing(order: GenerationOrder = .bySeed) -> [GenerationJob] {
         var created: [GenerationJob] = []
-        for prompt in project.prompts {
+        func fill(_ promptID: UUID, _ runID: UUID) {
+            if let job = generateCell(promptID: promptID, runID: runID) { created.append(job) }
+        }
+        switch order {
+        case .bySeed:   // run (column) outer, prompt inner
             for run in project.runs {
-                if let job = generateCell(promptID: prompt.id, runID: run.id) {
-                    created.append(job)
-                }
+                for prompt in project.prompts { fill(prompt.id, run.id) }
+            }
+        case .byPrompt: // prompt (row) outer, run inner
+            for prompt in project.prompts {
+                for run in project.runs { fill(prompt.id, run.id) }
             }
         }
         return created

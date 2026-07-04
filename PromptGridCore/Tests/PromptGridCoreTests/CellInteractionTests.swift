@@ -85,6 +85,24 @@ struct CellInteractionTests {
         #expect(store.project.prompts.first { $0.id == late.id }?.jobs.count == 2)
     }
 
+    @Test("Generate Missing order: bySeed is column-major, byPrompt is row-major")
+    func generateMissingOrder() {
+        func sequence(_ order: GenerationOrder) -> [(p: Int, r: Int)] {
+            let store = storeWithGrid(prompts: 2)
+            let (r0, _) = store.addRun(seed: 1, seedWasRandom: false, generateJobs: false)
+            let (r1, _) = store.addRun(seed: 2, seedWasRandom: false, generateJobs: false)
+            let p0 = store.project.prompts[0].id, p1 = store.project.prompts[1].id
+            let created = store.generateMissing(order: order)
+            return created.map { job in
+                (p: job.promptID == p0 ? 0 : 1, r: job.runID == r0.id ? 0 : 1)
+            }
+        }
+        // bySeed: run0 fully (p0,p1), then run1.
+        #expect(sequence(.bySeed).map { "\($0.p)\($0.r)" } == ["00", "10", "01", "11"])
+        // byPrompt: prompt0 fully (r0,r1), then prompt1.
+        #expect(sequence(.byPrompt).map { "\($0.p)\($0.r)" } == ["00", "01", "10", "11"])
+    }
+
     @Test("Deleting a cell removes its job and image, reverting it to empty")
     func deleteCell() {
         let store = storeWithGrid(prompts: 1)

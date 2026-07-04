@@ -14,6 +14,7 @@ import PromptGridCore
 /// Default off — a new run adds an empty column; the user fills it when ready.
 enum GenerationPreferenceKey {
     static let autoGenerateNewRuns = "autoGenerateNewRuns"
+    static let generateMissingOrder = "generateMissingOrder"
 }
 
 struct SettingsView: View {
@@ -22,6 +23,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
+    @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
 
     @State private var isChoosingFolder = false
     @State private var pendingFolder: URL?
@@ -51,6 +53,15 @@ struct SettingsView: View {
                 Section("Generation") {
                     Toggle("Generate automatically when adding a run", isOn: $autoGenerateNewRuns)
                     Text("When on, creating a run immediately queues a generation for every prompt. When off, the run's cells start empty — use Generate or Generate Missing when you're ready.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Generate Missing order", selection: $generateMissingOrder) {
+                        ForEach(GenerationOrder.allCases) { order in
+                            Text(order.title).tag(order)
+                        }
+                    }
+                    Text("By Seed fills each seed across all prompts first (a full sweep at each seed). By Prompt fills each prompt across all seeds first (keeps a prompt's model in play run after run).")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

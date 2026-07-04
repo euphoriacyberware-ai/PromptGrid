@@ -221,6 +221,35 @@ public final class ProjectStore {
         return job
     }
 
+    /// Number of cells (prompt × run) with no job yet — the "missing" images.
+    public func missingCellCount() -> Int {
+        var count = 0
+        for prompt in project.prompts {
+            for run in project.runs where prompt.jobs[run.id] == nil {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    /// Create a frozen pending job for every empty cell and return them to
+    /// enqueue — the batch "fill in everything missing" action. Cells that
+    /// already have a job (completed/failed/etc.) are left untouched; delete one
+    /// first to regenerate it. Wildcards re-roll and current settings/seed are
+    /// snapshotted per cell, exactly like single-cell generate.
+    @discardableResult
+    public func generateMissing() -> [GenerationJob] {
+        var created: [GenerationJob] = []
+        for prompt in project.prompts {
+            for run in project.runs {
+                if let job = generateCell(promptID: prompt.id, runID: run.id) {
+                    created.append(job)
+                }
+            }
+        }
+        return created
+    }
+
     // MARK: Ranking (Specification §10)
 
     /// The single coordinating method for ranks. Setting `.final` first demotes

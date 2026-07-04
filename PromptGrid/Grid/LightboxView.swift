@@ -9,8 +9,12 @@
 //  generate/retry, delete). 2D navigation mirrors the grid axes: left/right across
 //  runs, up/down across prompts — arrow keys and four edge chevrons.
 //
+//  Zoom is measured as the true pixel scale: 100% = 1:1 with the native image,
+//  so "Fit" of a large image reads below 100% and "Actual Size" reads 100%.
+//
 
 import SwiftUI
+import ImageIO
 import PromptGridCore
 
 struct LightboxView: View {
@@ -19,11 +23,11 @@ struct LightboxView: View {
     let onClose: () -> Void
 
     @EnvironmentObject private var coordinator: GenerationCoordinator
-    @State private var zoom: CGFloat = 1          // multiplier on the fit scale
+    @State private var zoom: CGFloat = 1          // multiplier on the fit scale (1 = Fit)
     @GestureState private var pinch: CGFloat = 1
     @State private var isConfirmingDelete = false
-
-    private let maxZoom: CGFloat = 8
+    @State private var loadedImage: (image: Image, size: CGSize)?
+    @State private var containerSize: CGSize = .zero
 
     private var prompts: [Prompt] { store.project.prompts }
     private var runs: [Run] { store.project.runs }
@@ -32,6 +36,24 @@ struct LightboxView: View {
     private var prompt: Prompt? { prompts.first { $0.id == current.promptID } }
     private var run: Run? { runs.first { $0.id == current.runID } }
     private var job: GenerationJob? { prompt?.jobs[current.runID] }
+
+    // MARK: Zoom math (100% = native pixels)
+
+    /// Scale that fits the native image into the container.
+    private var fitScale: CGFloat {
+        guard containerSize.width > 0, containerSize.height > 0,
+              let size = loadedImage?.size, size.width > 0, size.height > 0 else { return 1 }
+        return min(containerSize.width / size.width, containerSize.height / size.height)
+    }
+    /// Max zoom multiplier — reaching native resolution (never past it).
+    private var maxZoom: CGFloat { max(1 / fitScale, 1) }
+    private var effectiveZoom: CGFloat { min(max(zoom * pinch, 1), maxZoom) }
+    /// Display pixels ÷ native pixels.
+    private var actualScale: CGFloat { fitScale * effectiveZoom }
+
+    private var reloadToken: String {
+        "\(current.promptID.uuidString)|\(current.runID.uuidString)|\(job?.imageFilename ?? "")"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,6 +67,9 @@ struct LightboxView: View {
         .frame(minWidth: 960, idealWidth: 1200, minHeight: 720, idealHeight: 900)
         .background(.background)
 #endif
+        .task(id: reloadToken) {
+            loadedImage = imageData.flatMap { loadImage($0) }
+        }
         .onChange(of: current) { _, _ in zoom = 1 }
     }
 
@@ -93,6 +118,8 @@ struct LightboxView: View {
                 chevron("chevron.down", disabled: (promptIndex ?? 0) >= prompts.count - 1) { move(dPrompt: 1, dRun: 0) }
                     .frame(maxHeight: .infinity, alignment: .bottom)
             }
+            .onAppear { containerSize = geo.size }
+            .onChange(of: geo.size) { _, newValue in containerSize = newValue }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .focusable()
@@ -106,7 +133,7 @@ struct LightboxView: View {
     private func imageContent(container: CGSize) -> some View {
         switch job?.status {
         case .completed:
-            if let data = imageData, let loaded = loadImage(data) {
+            if let loaded = loadedImage {
                 zoomableImage(loaded.image, pixelSize: loaded.size, container: container)
             } else {
                 stateView("photo", "Image unavailable")
@@ -135,10 +162,7 @@ struct LightboxView: View {
     }
 
     private func zoomableImage(_ image: Image, pixelSize: CGSize, container: CGSize) -> some View {
-        let fit = min(container.width / max(pixelSize.width, 1), container.height / max(pixelSize.height, 1))
-        let effective = min(max(zoom * pinch, 1), maxZoom)
-        let display = CGSize(width: pixelSize.width * fit * effective,
-                             height: pixelSize.height * fit * effective)
+        let display = CGSize(width: pixelSize.width * actualScale, height: pixelSize.height * actualScale)
         return ScrollView([.horizontal, .vertical]) {
             image
                 .resizable()
@@ -146,7 +170,7 @@ struct LightboxView: View {
                 .frame(width: display.width, height: display.height)
                 .frame(minWidth: container.width, minHeight: container.height) // center when small
         }
-        .scrollDisabled(effective <= 1.001)
+        .scrollDisabled(effectiveZoom <= 1.001)
         .gesture(
             MagnifyGesture()
                 .updating($pinch) { value, state, _ in state = value.magnification }
@@ -184,15 +208,16 @@ struct LightboxView: View {
 
     @ViewBuilder
     private var zoomControls: some View {
-        if job?.status == .completed {
+        if job?.status == .completed, loadedImage != nil {
             HStack(spacing: 6) {
-                Button("Fit") { zoom = 1 }.disabled(zoom == 1)
+                Button("Fit") { zoom = 1 }.disabled(abs(zoom - 1) < 0.001)
                 Button { zoom = max(zoom / 1.5, 1) } label: { Image(systemName: "minus.magnifyingglass") }
-                    .disabled(zoom <= 1)
-                Text("\(Int((zoom) * 100))%").font(.caption.monospacedDigit())
-                    .frame(width: 46)
+                    .disabled(zoom <= 1.001)
+                Text("\(Int((actualScale * 100).rounded()))%")
+                    .font(.caption.monospacedDigit()).frame(width: 50)
                 Button { zoom = min(zoom * 1.5, maxZoom) } label: { Image(systemName: "plus.magnifyingglass") }
-                    .disabled(zoom >= maxZoom)
+                    .disabled(zoom >= maxZoom - 0.001)
+                Button("100%") { zoom = maxZoom }.disabled(abs(effectiveZoom - maxZoom) < 0.001)
             }
             .buttonStyle(.bordered)
         }
@@ -264,12 +289,23 @@ struct LightboxView: View {
     }
 
     private func loadImage(_ data: Data) -> (image: Image, size: CGSize)? {
+        let pixels = pixelSize(from: data)
 #if os(macOS)
         guard let image = NSImage(data: data) else { return nil }
-        return (Image(nsImage: image), image.size)
+        return (Image(nsImage: image), pixels ?? image.size)
 #else
         guard let image = UIImage(data: data) else { return nil }
-        return (Image(uiImage: image), image.size)
+        let fallback = CGSize(width: image.size.width * image.scale, height: image.size.height * image.scale)
+        return (Image(uiImage: image), pixels ?? fallback)
 #endif
+    }
+
+    /// True pixel dimensions from the image metadata (not points).
+    private func pixelSize(from data: Data) -> CGSize? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = props[kCGImagePropertyPixelWidth] as? Double,
+              let height = props[kCGImagePropertyPixelHeight] as? Double else { return nil }
+        return CGSize(width: width, height: height)
     }
 }

@@ -66,6 +66,25 @@ struct CellInteractionTests {
         #expect(rank(store, jobs[1].id) == .final)
     }
 
+    @Test("Generate Missing fills only the empty cells")
+    func generateMissing() {
+        let store = storeWithGrid(prompts: 2)
+        let (r1, _) = store.addRun(seed: 1, seedWasRandom: false)  // both prompts get jobs
+        store.addRun(seed: 2, seedWasRandom: false)                 // both prompts get jobs
+        // Add a prompt after the runs -> 2 empty cells (no backfill).
+        let late = store.addPrompt()
+        // Delete one existing cell -> 1 more empty.
+        store.deleteCell(promptID: store.project.prompts[0].id, runID: r1.id)
+
+        #expect(store.missingCellCount() == 3)   // 2 (late prompt × 2 runs) + 1 deleted
+        let created = store.generateMissing()
+        #expect(created.count == 3)
+        #expect(store.missingCellCount() == 0)   // all filled
+        #expect(created.allSatisfy { $0.status == .pending })
+        // Existing jobs weren't recreated.
+        #expect(store.project.prompts.first { $0.id == late.id }?.jobs.count == 2)
+    }
+
     @Test("Deleting a cell removes its job and image, reverting it to empty")
     func deleteCell() {
         let store = storeWithGrid(prompts: 1)

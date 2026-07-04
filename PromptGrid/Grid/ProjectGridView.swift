@@ -23,6 +23,9 @@ struct ProjectGridView: View {
     @State private var editingPrompt: EditingPrompt?
     @State private var isPresentingExport = false
     @State private var cellPendingDeletion: CellRef?
+    @State private var isConfirmingGenerateMissing = false
+
+    private var missingCount: Int { store.missingCellCount() }
 
     private struct EditingPrompt: Identifiable { let id: UUID }
 
@@ -61,6 +64,15 @@ struct ProjectGridView: View {
                         createRun(seed: seed, seedWasRandom: random)
                     }
                 }
+            }
+            ToolbarItem {
+                Button {
+                    isConfirmingGenerateMissing = true
+                } label: {
+                    Label("Generate Missing", systemImage: "wand.and.stars")
+                }
+                .disabled(missingCount == 0 || !coordinator.isConfigured)
+                .help("Generate every empty cell")
             }
             if let queue = coordinator.queue {
                 ToolbarItem {
@@ -113,6 +125,15 @@ struct ProjectGridView: View {
             Button("Cancel", role: .cancel) {}
         } message: { _ in
             Text("This deletes the generated image. The cell becomes empty and can be generated again. This can’t be undone.")
+        }
+        .confirmationDialog(
+            "Generate \(missingCount) Missing Image\(missingCount == 1 ? "" : "s")?",
+            isPresented: $isConfirmingGenerateMissing
+        ) {
+            Button("Generate \(missingCount)") { generateMissing() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Queues a generation for every empty cell in the grid, re-rolling wildcards and using each prompt’s current settings. This can be a large batch.")
         }
         .sheet(item: $editingPrompt) { editing in
             PromptDetailEditor(store: store, promptID: editing.id)
@@ -260,6 +281,12 @@ struct ProjectGridView: View {
         store.deleteCell(promptID: ref.promptID, runID: ref.runID)
         store.saveOrReport()
         if selectedCell == ref { selectedCell = nil }
+    }
+
+    private func generateMissing() {
+        let created = store.generateMissing()
+        store.saveOrReport()
+        coordinator.enqueue(created, for: store)
     }
 
     private func promptCell(_ prompt: Prompt) -> some View {

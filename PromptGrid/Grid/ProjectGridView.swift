@@ -21,6 +21,7 @@ struct ProjectGridView: View {
     @State private var runPendingDeletion: Run?
     @State private var isPresentingSeedPicker = false
     @State private var editingPrompt: EditingPrompt?
+    @State private var isPresentingExport = false
 
     private struct EditingPrompt: Identifiable { let id: UUID }
 
@@ -65,6 +66,13 @@ struct ProjectGridView: View {
                     QueueToolbarButton(queue: queue)
                 }
             }
+            ToolbarItem {
+                Button {
+                    isPresentingExport = true
+                } label: {
+                    Label("Export", systemImage: "square.and.arrow.up")
+                }
+            }
         }
         .confirmationDialog(
             "Delete Prompt?",
@@ -94,6 +102,9 @@ struct ProjectGridView: View {
         }
         .sheet(item: $editingPrompt) { editing in
             PromptDetailEditor(store: store, promptID: editing.id)
+        }
+        .sheet(isPresented: $isPresentingExport) {
+            ExportView(store: store)
         }
     }
 

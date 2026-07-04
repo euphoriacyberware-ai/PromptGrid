@@ -373,8 +373,19 @@ public struct DrawThingsConfigurationDTO: Codable, Sendable, Equatable {
 
     /// Reconstruct a live configuration. Unknown enum raw values fall back to a
     /// sane default rather than failing.
+    ///
+    /// Optional model-path fields (`refinerModel`, `upscaler`, `faceRestoration`)
+    /// are normalized empty-string → `nil`: Draw Things exports a disabled model
+    /// as `""`, but on the wire a present-but-empty string is treated as "enabled
+    /// with the server default" — which invokes e.g. face restoration with an
+    /// incompatible model and crashes the server. Sending `nil` (absent) is what
+    /// actually means "disabled".
     public var configuration: DrawThingsConfiguration {
-        DrawThingsConfiguration(
+        func nilIfEmpty(_ value: String?) -> String? {
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }
+        return DrawThingsConfiguration(
             width: width,
             height: height,
             steps: steps,
@@ -449,11 +460,11 @@ public struct DrawThingsConfigurationDTO: Codable, Sendable, Equatable {
             guidingFrameNoise: guidingFrameNoise,
             startFrameGuidance: startFrameGuidance,
             numFrames: numFrames,
-            refinerModel: refinerModel,
+            refinerModel: nilIfEmpty(refinerModel),
             refinerStart: refinerStart,
             zeroNegativePrompt: zeroNegativePrompt,
-            upscaler: upscaler,
-            faceRestoration: faceRestoration,
+            upscaler: nilIfEmpty(upscaler),
+            faceRestoration: nilIfEmpty(faceRestoration),
             name: name,
             clipLText: clipLText,
             openClipGText: openClipGText,

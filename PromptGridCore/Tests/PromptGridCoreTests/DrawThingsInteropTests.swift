@@ -45,6 +45,29 @@ struct DrawThingsInteropTests {
         #expect(try decodeMode("2") == 2)
     }
 
+    @Test("Empty model-path fields become nil on the wire (disabled, not default)")
+    func emptyModelPathsNormalizeToNil() throws {
+        // Draw Things exports a disabled model as "" — but sending "" makes the
+        // server run it with a default (crashing face restoration). It must go out
+        // as nil = absent = disabled.
+        let dto = try ProjectPackage.makeDecoder().decode(
+            DrawThingsConfigurationDTO.self,
+            from: Data(#"{ "faceRestoration": "", "upscaler": "", "refinerModel": "" }"#.utf8)
+        )
+        // Stored form keeps the empty strings (matches Draw Things' JSON shape).
+        #expect(dto.faceRestoration == "")
+        // The wire configuration disables them.
+        let config = dto.configuration
+        #expect(config.faceRestoration == nil)
+        #expect(config.upscaler == nil)
+        #expect(config.refinerModel == nil)
+
+        // A real value still passes through.
+        var withFace = dto
+        withFace.faceRestoration = "restoreformer_v1.0_f16.ckpt"
+        #expect(withFace.configuration.faceRestoration == "restoreformer_v1.0_f16.ckpt")
+    }
+
     @Test("We still encode enums as the canonical Int8 (files unaffected)")
     func encodesCanonicalInt8() throws {
         let dto = LoRAConfigDTO(LoRAConfig(file: "x", weight: 1, mode: .refiner))

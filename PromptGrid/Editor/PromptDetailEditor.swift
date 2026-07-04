@@ -27,8 +27,6 @@ struct PromptDetailEditor: View {
     // Local editing state — committed on Done, discarded on Cancel.
     @State private var text = ""
     @State private var negativePrompt = ""
-    @State private var jsonText = ""
-    @State private var jsonError: String?
     @State private var settings = DrawThingsConfigurationDTO()
     @State private var referenceImageData: Data?
     @State private var referenceChanged = false
@@ -53,10 +51,6 @@ struct PromptDetailEditor: View {
         }
         .frame(minWidth: 640, minHeight: 460)
         .onAppear(perform: loadIfNeeded)
-        .task(id: jsonText) {
-            try? await Task.sleep(for: .milliseconds(400))
-            if !Task.isCancelled { validateJSON() }
-        }
         .fileImporter(isPresented: $isImporterPresented, allowedContentTypes: [.image]) { result in
             handleImport(result)
         }
@@ -128,20 +122,7 @@ struct PromptDetailEditor: View {
     private var rightPane: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Configuration (JSON)").font(.headline)
-            SpellcheckedTextView(text: $jsonText, isSpellCheckingEnabled: false, isMonospaced: true)
-                .frame(minHeight: 200)
-
-            if let jsonError {
-                Label(jsonError, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Label("Valid — last valid configuration is kept", systemImage: "checkmark.circle.fill")
-                    .font(.caption).foregroundStyle(.green)
-            }
-
-            Text("The seed field here is ignored — each run supplies its own seed.")
-                .font(.caption2).foregroundStyle(.secondary)
+            ConfigurationEditor(configuration: $settings)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -155,19 +136,7 @@ struct PromptDetailEditor: View {
         text = prompt.text
         negativePrompt = prompt.negativePrompt
         settings = prompt.settings
-        jsonText = prettyJSON(prompt.settings)
         referenceImageData = store.referenceImageData(for: prompt)
-    }
-
-    private func validateJSON() {
-        do {
-            let decoded = try ProjectPackage.makeDecoder()
-                .decode(DrawThingsConfigurationDTO.self, from: Data(jsonText.utf8))
-            settings = decoded          // commit last-valid
-            jsonError = nil
-        } catch {
-            jsonError = friendlyDecodingMessage(error)   // keep last-valid settings
-        }
     }
 
     private func commit() {
@@ -198,29 +167,6 @@ struct PromptDetailEditor: View {
     }
 
     // MARK: Helpers
-
-    private func prettyJSON(_ dto: DrawThingsConfigurationDTO) -> String {
-        guard let data = try? ProjectPackage.makeEncoder().encode(dto),
-              let string = String(data: data, encoding: .utf8) else { return "{}" }
-        return string
-    }
-
-    private func friendlyDecodingMessage(_ error: Error) -> String {
-        if let decoding = error as? DecodingError {
-            switch decoding {
-            case .dataCorrupted(let context):
-                return "Invalid JSON: \(context.debugDescription)"
-            case .typeMismatch(_, let context), .valueNotFound(_, let context):
-                let key = context.codingPath.last?.stringValue ?? "?"
-                return "Wrong type for “\(key)”: \(context.debugDescription)"
-            case .keyNotFound(let key, _):
-                return "Missing key “\(key.stringValue)”"
-            @unknown default:
-                return "Invalid configuration."
-            }
-        }
-        return "Invalid configuration."
-    }
 
     private func platformImage(_ data: Data) -> Image? {
 #if os(macOS)

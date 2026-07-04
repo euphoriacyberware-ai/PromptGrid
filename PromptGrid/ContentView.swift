@@ -115,7 +115,8 @@ struct ContentView: View {
 
     private func createProject() {
         do {
-            let item = try library.createProject(named: newProjectName)
+            let item = try library.createProject(named: newProjectName,
+                                                 defaultSettings: AppDefaults.generationConfig())
             selection = item.id
         } catch {
             library.lastError = error.localizedDescription

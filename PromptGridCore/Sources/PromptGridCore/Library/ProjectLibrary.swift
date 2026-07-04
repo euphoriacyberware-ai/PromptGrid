@@ -104,12 +104,16 @@ public final class ProjectLibrary {
 
     // MARK: CRUD
 
-    /// Create a new, empty project and return its sidebar entry.
+    /// Create a new, empty project and return its sidebar entry. `defaultSettings`
+    /// (the app-level generation defaults) seed the project's own defaults, which
+    /// in turn seed each new prompt.
     @discardableResult
-    public func createProject(named rawName: String) throws -> ProjectListItem {
+    public func createProject(named rawName: String,
+                              defaultSettings: DrawThingsConfigurationDTO = DrawThingsConfigurationDTO()) throws -> ProjectListItem {
         let name = Self.sanitizedName(rawName)
         let url = uniquePackageURL(forName: name)
-        let project = Project(name: url.deletingPathExtension().lastPathComponent)
+        let project = Project(name: url.deletingPathExtension().lastPathComponent,
+                              defaultSettings: defaultSettings)
         let wrapper = try ProjectPackage(project: project).fileWrapper()
         try FileCoordination.write(wrapper, to: url)
         refresh()

@@ -30,6 +30,16 @@ struct ProjectStoreTests {
         #expect(prompt.settings.steps == 42)
     }
 
+    @Test("setDefaultSettings updates the project default, seeding future prompts")
+    func setDefaultSettings() {
+        let store = makeStore()
+        var defaults = DrawThingsConfigurationDTO()
+        defaults.model = "custom.ckpt"
+        store.setDefaultSettings(defaults)
+        #expect(store.project.defaultSettings.model == "custom.ckpt")
+        #expect(store.addPrompt().settings.model == "custom.ckpt")
+    }
+
     @Test("Removing a prompt renumbers the remaining order")
     func removePromptRenumbers() {
         let store = makeStore()

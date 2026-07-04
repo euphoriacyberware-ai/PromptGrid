@@ -101,6 +101,11 @@ public final class ProjectStore {
         }
     }
 
+    /// The project's default generation settings, copied into each new prompt.
+    public func setDefaultSettings(_ settings: DrawThingsConfigurationDTO) {
+        project.defaultSettings = settings
+    }
+
     /// Apply an edit to a prompt's non-frozen fields (text, negative prompt,
     /// settings). Existing jobs are historical records and are never touched (§4).
     public func updatePrompt(id: UUID, _ transform: (inout Prompt) -> Void) {

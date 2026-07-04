@@ -24,6 +24,7 @@ struct ProjectGridView: View {
     @State private var isPresentingExport = false
     @State private var cellPendingDeletion: CellRef?
     @State private var isConfirmingGenerateMissing = false
+    @State private var isPresentingProjectSettings = false
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
     @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
 
@@ -88,6 +89,13 @@ struct ProjectGridView: View {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
             }
+            ToolbarItem {
+                Button {
+                    isPresentingProjectSettings = true
+                } label: {
+                    Label("Project Settings", systemImage: "slider.horizontal.3")
+                }
+            }
         }
         .confirmationDialog(
             "Delete Prompt?",
@@ -142,6 +150,9 @@ struct ProjectGridView: View {
         }
         .sheet(isPresented: $isPresentingExport) {
             ExportView(store: store)
+        }
+        .sheet(isPresented: $isPresentingProjectSettings) {
+            ProjectSettingsView(store: store)
         }
     }
 

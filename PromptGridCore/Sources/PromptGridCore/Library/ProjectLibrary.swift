@@ -25,8 +25,8 @@ public final class ProjectLibrary {
     /// Surfaced to the UI when a filesystem operation fails.
     public var lastError: String?
 
-    public let libraryURL: URL
-    private let scanner: LibraryScanning
+    public private(set) var libraryURL: URL
+    private var scanner: LibraryScanning
     private var isStarted = false
 
     public init(libraryURL: URL = ProjectLibrary.defaultLibraryURL(),
@@ -35,8 +35,9 @@ public final class ProjectLibrary {
         self.scanner = scanner ?? DirectoryLibraryScanner(directoryURL: libraryURL)
     }
 
-    /// Default local library location. Phase 11 replaces this with the app's
-    /// iCloud container's Documents folder.
+    /// Default local library location — the app's private sandbox container.
+    /// Deliberately *not* under `~/Documents` so it isn't swept into iCloud by
+    /// "Desktop & Documents" sync. The user can opt into another location.
     nonisolated public static func defaultLibraryURL() -> URL {
         let base = (try? FileManager.default.url(
             for: .applicationSupportDirectory, in: .userDomainMask,
@@ -68,6 +69,32 @@ public final class ProjectLibrary {
     public func stop() {
         scanner.stop()
         isStarted = false
+    }
+
+    /// Point the library at a different folder and rescan. Files are *not* moved
+    /// — the caller relocates any existing projects first.
+    public func relocate(to newURL: URL) {
+        let wasStarted = isStarted
+        if isStarted { scanner.stop(); isStarted = false }
+        libraryURL = newURL
+        scanner = DirectoryLibraryScanner(directoryURL: newURL)
+        if wasStarted { start() } else { refresh() }
+    }
+
+    /// Move every project package from the current library folder into `newURL`,
+    /// returning the number moved. Used before `relocate` when the user changes
+    /// the library location and wants to bring existing projects along.
+    @discardableResult
+    public func moveProjects(to newURL: URL) throws -> Int {
+        try FileManager.default.createDirectory(at: newURL, withIntermediateDirectories: true)
+        var moved = 0
+        for item in LibraryEnumerator.scan(directoryURL: libraryURL) {
+            let destination = newURL.appendingPathComponent(item.url.lastPathComponent)
+            guard !FileManager.default.fileExists(atPath: destination.path) else { continue }
+            try FileManager.default.moveItem(at: item.url, to: destination)
+            moved += 1
+        }
+        return moved
     }
 
     /// Re-read the folder and publish the result.

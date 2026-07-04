@@ -80,6 +80,28 @@ struct ProjectLibraryTests {
         library.refresh()
         #expect(library.items.map(\.displayName) == ["External"])
     }
+
+    @Test("Relocating moves projects and rescans the new folder")
+    func relocate() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let newRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: newRoot) }
+
+        try library.createProject(named: "Alpha")
+        try library.createProject(named: "Beta")
+        #expect(library.items.count == 2)
+
+        let moved = try library.moveProjects(to: newRoot)
+        #expect(moved == 2)
+        library.relocate(to: newRoot)
+
+        #expect(library.libraryURL == newRoot)
+        #expect(Set(library.items.map(\.displayName)) == ["Alpha", "Beta"])
+        #expect(LibraryEnumerator.scan(directoryURL: root).isEmpty)
+        #expect(FileManager.default.fileExists(atPath: newRoot.appendingPathComponent("Alpha.pgproj").path))
+    }
 }
 
 /// A scanner that never fires — tests call `refresh()` deterministically.

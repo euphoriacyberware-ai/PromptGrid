@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 import PromptGridCore
 
 /// Shared preference key: whether creating a run immediately queues generation.
@@ -16,10 +17,16 @@ enum GenerationPreferenceKey {
 }
 
 struct SettingsView: View {
+    let library: ProjectLibrary
     @EnvironmentObject private var coordinator: GenerationCoordinator
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
+
+    @State private var isChoosingFolder = false
+    @State private var pendingFolder: URL?
+    @State private var isConfirmingUseDefault = false
+    @State private var relocationMessage: String?
 
     @State private var host = ""
     @State private var portText = ""
@@ -46,6 +53,23 @@ struct SettingsView: View {
                     Text("When on, creating a run immediately queues a generation for every prompt. When off, the run's cells start empty — use Generate or Generate Missing when you're ready.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
+                }
+
+                Section("Library") {
+                    LabeledContent("Location") {
+                        Text(LibraryLocationStore.hasCustomLocation ? library.libraryURL.path(percentEncoded: false) : "Local (private)")
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2).truncationMode(.middle)
+                    }
+                    Button("Choose Folder…") { isChoosingFolder = true }
+                    if LibraryLocationStore.hasCustomLocation {
+                        Button("Use Default (Local)") { isConfirmingUseDefault = true }
+                    }
+                    if let relocationMessage {
+                        Text(relocationMessage).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Text("Your projects and images are stored here. The default is private to this device. Choose an iCloud Drive or Dropbox folder to sync across devices — note that image libraries can be large.")
+                        .font(.footnote).foregroundStyle(.secondary)
                 }
 
                 Section("Server") {
@@ -118,7 +142,48 @@ struct SettingsView: View {
             useTLS = coordinator.settings.useTLS
             sharedSecret = coordinator.settings.sharedSecret
         }
-        .frame(minWidth: 420, minHeight: 380)
+        .frame(minWidth: 460, minHeight: 440)
+        .fileImporter(isPresented: $isChoosingFolder, allowedContentTypes: [.folder]) { result in
+            if case let .success(folder) = result { pendingFolder = folder }
+        }
+        .confirmationDialog(
+            "Move library to this folder?",
+            isPresented: Binding(get: { pendingFolder != nil }, set: { if !$0 { pendingFolder = nil } }),
+            presenting: pendingFolder
+        ) { folder in
+            Button("Move \(library.items.count) Project\(library.items.count == 1 ? "" : "s")") {
+                relocate(to: folder, isDefault: false)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { folder in
+            Text("Your \(library.items.count) project\(library.items.count == 1 ? "" : "s") will be moved to “\(folder.lastPathComponent)”, which becomes the library location.")
+        }
+        .confirmationDialog(
+            "Return to the default local library?",
+            isPresented: $isConfirmingUseDefault
+        ) {
+            Button("Move to Default") { relocate(to: ProjectLibrary.defaultLibraryURL(), isDefault: true) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your projects will be moved back into this device's private storage and will no longer sync.")
+        }
+    }
+
+    private func relocate(to destination: URL, isDefault: Bool) {
+        let scoped = !isDefault && destination.startAccessingSecurityScopedResource()
+        do {
+            try library.moveProjects(to: destination)
+            library.relocate(to: destination)
+            if isDefault {
+                LibraryLocationStore.useDefault()
+            } else {
+                try LibraryLocationStore.setCustomLocation(destination)
+            }
+            relocationMessage = "Library is now at “\(destination.lastPathComponent)”."
+        } catch {
+            relocationMessage = "Couldn’t relocate: \(error.localizedDescription)"
+            if scoped { destination.stopAccessingSecurityScopedResource() }
+        }
     }
 
     private func runTest() {

@@ -13,7 +13,7 @@ import PromptGridCore
 /// arrives in Phase 4.
 struct ContentView: View {
     @EnvironmentObject private var coordinator: GenerationCoordinator
-    @State private var library = ProjectLibrary()
+    @State private var library = ProjectLibrary(libraryURL: LibraryLocationStore.resolveLibraryURL())
     @State private var selection: ProjectListItem.ID?
 
     @State private var isPresentingNewProject = false
@@ -76,8 +76,9 @@ struct ContentView: View {
             }
         }
         .task { library.start() }
+        .onChange(of: library.libraryURL) { _, _ in selection = nil }
         .sheet(isPresented: $isPresentingSettings) {
-            SettingsView()
+            SettingsView(library: library)
         }
         .alert("New Project", isPresented: $isPresentingNewProject) {
             TextField("Name", text: $newProjectName)

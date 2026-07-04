@@ -139,7 +139,17 @@ struct QueuePanel: View {
         if let current = queue.currentRequest {
             Section("Generating now") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(current.name).font(.subheadline).lineLimit(2)
+                    HStack {
+                        Text(current.name).font(.subheadline).lineLimit(2)
+                        Spacer()
+                        Button {
+                            _ = queue.cancel(id: current.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Cancel this generation")
+                    }
                     if let progress = queue.currentProgress {
                         CurrentProgressView(progress: progress)
                     }

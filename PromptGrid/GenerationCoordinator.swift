@@ -106,7 +106,10 @@ final class GenerationCoordinator: ObservableObject {
             let prompt = project.prompts.first { $0.id == job.promptID }
             let referenceData = prompt.flatMap { store.referenceImageData(for: $0) }
             jobToPackageURL[job.id] = store.url
-            return GenerationRequestBuilder.request(for: job, in: project, referenceImageData: referenceData)
+            let request = GenerationRequestBuilder.request(for: job, in: project, referenceImageData: referenceData)
+            let c = request.configuration
+            log("request \(request.name): model=\(c.model) size=\(c.width)x\(c.height) steps=\(c.steps) sampler=\(c.sampler.rawValue) loras=\(c.loras.count) strength=\(c.strength) refImage=\(request.image != nil)")
+            return request
         }
         log("enqueueing \(requests.count) request(s) to \(settings.addressString)")
         queue.enqueue(requests)

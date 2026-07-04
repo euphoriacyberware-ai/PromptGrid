@@ -1,5 +1,5 @@
 {
-  "originHash" : "9e26c058a18d58b6193706f79dcce5ec707dbfe3495122ab058c218fca690ef3",
+  "originHash" : "76fc7d38acb8f9324281a6dfa6eb7a47ff5f90bd467f684a2a85e12c8c8e64dd",
   "pins" : [
     {
       "identity" : "drawthingsqueue",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/euphoriacyberware-ai/DT-gRPC-Swift-Client",
       "state" : {
         "branch" : "main",
-        "revision" : "d0210d6fc8cb5c98471a6e8c574f8fa15058b240"
+        "revision" : "9218530af645bedb7fd54ac59099e0c723ef1138"
       }
     },
     {

@@ -67,9 +67,15 @@ struct ProjectDetailView: View {
                 Text("Select a cell").foregroundStyle(.secondary)
             }
         }
+#if os(iOS)
+        .fullScreenCover(item: $lightboxCell) { cell in
+            LightboxView(store: store, current: cell) { lightboxCell = nil }
+        }
+#else
         .sheet(item: $lightboxCell) { cell in
             LightboxView(store: store, current: cell) { lightboxCell = nil }
         }
+#endif
     }
 
     private func open() {

@@ -66,6 +66,20 @@ struct CellInteractionTests {
         #expect(rank(store, jobs[1].id) == .final)
     }
 
+    @Test("Deleting a cell removes its job and image, reverting it to empty")
+    func deleteCell() {
+        let store = storeWithGrid(prompts: 1)
+        let (run, jobs) = store.addRun(seed: 1, seedWasRandom: false)
+        let promptID = store.project.prompts[0].id
+        store.applyResult(jobID: jobs[0].id, imageData: Data([1]), thumbnailData: Data([2]))
+        #expect(store.project.prompts[0].jobs[run.id] != nil)
+
+        store.deleteCell(promptID: promptID, runID: run.id)
+        #expect(store.project.prompts[0].jobs[run.id] == nil)  // empty again
+        // Regeneratable after deletion.
+        #expect(store.generateCell(promptID: promptID, runID: run.id) != nil)
+    }
+
     private func rank(_ store: ProjectStore, _ jobID: UUID) -> CellRank? {
         for prompt in store.project.prompts {
             if let job = prompt.jobs.values.first(where: { $0.id == jobID }) { return job.rank }

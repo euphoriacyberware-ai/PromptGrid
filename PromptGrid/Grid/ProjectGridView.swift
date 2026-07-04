@@ -22,6 +22,7 @@ struct ProjectGridView: View {
     @State private var isPresentingSeedPicker = false
     @State private var editingPrompt: EditingPrompt?
     @State private var isPresentingExport = false
+    @State private var cellPendingDeletion: CellRef?
 
     private struct EditingPrompt: Identifiable { let id: UUID }
 
@@ -100,6 +101,19 @@ struct ProjectGridView: View {
         } message: { run in
             Text(deleteMessage(for: run))
         }
+        .confirmationDialog(
+            "Delete Image?",
+            isPresented: Binding(
+                get: { cellPendingDeletion != nil },
+                set: { if !$0 { cellPendingDeletion = nil } }
+            ),
+            presenting: cellPendingDeletion
+        ) { ref in
+            Button("Delete Image", role: .destructive) { deleteCell(ref) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This deletes the generated image. The cell becomes empty and can be generated again. This can’t be undone.")
+        }
         .sheet(item: $editingPrompt) { editing in
             PromptDetailEditor(store: store, promptID: editing.id)
         }
@@ -111,17 +125,22 @@ struct ProjectGridView: View {
     // MARK: Grid
 
     private var grid: some View {
-        ScrollView([.horizontal, .vertical]) {
-            LazyVStack(alignment: .leading, spacing: spacing, pinnedViews: [.sectionHeaders]) {
-                Section {
-                    ForEach(prompts) { prompt in
-                        row(for: prompt)
+        GeometryReader { geo in
+            ScrollView([.horizontal, .vertical]) {
+                LazyVStack(alignment: .leading, spacing: spacing, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        ForEach(prompts) { prompt in
+                            row(for: prompt)
+                        }
+                    } header: {
+                        headerRow
                     }
-                } header: {
-                    headerRow
                 }
+                .padding(spacing)
+                // Size the content to at least the viewport so it pins top-left
+                // (rather than centering) while still growing/scrolling when larger.
+                .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
             }
-            .padding(spacing)
         }
     }
 
@@ -206,6 +225,12 @@ struct ProjectGridView: View {
             EmptyView()
         }
         Button("Open", systemImage: "arrow.up.backward.and.arrow.down.forward") { onOpenLightbox(ref) }
+        if job != nil {
+            Divider()
+            Button("Delete Image…", systemImage: "trash", role: .destructive) {
+                cellPendingDeletion = ref
+            }
+        }
     }
 
     private func rankButton(_ job: GenerationJob, _ rank: CellRank, _ title: String) -> some View {
@@ -229,6 +254,12 @@ struct ProjectGridView: View {
         guard let job = store.generateCell(promptID: prompt.id, runID: run.id) else { return }
         store.saveOrReport()
         coordinator.enqueue([job], for: store)
+    }
+
+    private func deleteCell(_ ref: CellRef) {
+        store.deleteCell(promptID: ref.promptID, runID: ref.runID)
+        store.saveOrReport()
+        if selectedCell == ref { selectedCell = nil }
     }
 
     private func promptCell(_ prompt: Prompt) -> some View {

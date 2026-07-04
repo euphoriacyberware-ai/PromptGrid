@@ -248,6 +248,17 @@ public final class ProjectStore {
         }
     }
 
+    /// Delete a single cell's job and its image files, reverting the cell to
+    /// empty (so it can be generated again). Works for any status — the way to
+    /// clear a failed generation that the queue can no longer retry.
+    public func deleteCell(promptID: UUID, runID: UUID) {
+        guard let promptIndex = project.prompts.firstIndex(where: { $0.id == promptID }),
+              let job = project.prompts[promptIndex].jobs[runID] else { return }
+        if let name = job.imageFilename { package.removeImage(named: name) }
+        if let name = job.thumbnailFilename { package.removeThumbnail(named: name) }
+        project.prompts[promptIndex].jobs[runID] = nil
+    }
+
     // MARK: Results
 
     /// Apply a finished generation to its job. Returns `false` — writing nothing —

@@ -23,6 +23,7 @@ struct CellInspector: View {
     let store: ProjectStore
     let cell: CellRef
     @EnvironmentObject private var coordinator: GenerationCoordinator
+    @State private var isConfirmingDelete = false
 
     private var prompt: Prompt? { store.project.prompts.first { $0.id == cell.promptID } }
     private var run: Run? { store.project.runs.first { $0.id == cell.runID } }
@@ -120,22 +121,36 @@ struct CellInspector: View {
 
     @ViewBuilder
     private var actions: some View {
-        switch job?.status {
-        case nil:
-            Button("Generate", systemImage: "wand.and.stars", action: generate)
-                .buttonStyle(.borderedProminent)
-                .disabled(!coordinator.isConfigured)
-        case .failed(let message):
-            VStack(alignment: .leading, spacing: 6) {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption).foregroundStyle(.orange)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Retry", systemImage: "arrow.clockwise", action: retry)
+        VStack(alignment: .leading, spacing: 10) {
+            switch job?.status {
+            case nil:
+                Button("Generate", systemImage: "wand.and.stars", action: generate)
                     .buttonStyle(.borderedProminent)
                     .disabled(!coordinator.isConfigured)
+            case .failed(let message):
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption).foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Retry", systemImage: "arrow.clockwise", action: retry)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!coordinator.isConfigured)
+                }
+            default:
+                EmptyView()
             }
-        default:
-            EmptyView()
+
+            if job != nil {
+                Button("Delete Image…", systemImage: "trash", role: .destructive) {
+                    isConfirmingDelete = true
+                }
+                .confirmationDialog("Delete Image?", isPresented: $isConfirmingDelete) {
+                    Button("Delete Image", role: .destructive, action: deleteImage)
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This deletes the generated image. The cell becomes empty and can be generated again. This can’t be undone.")
+                }
+            }
         }
     }
 
@@ -150,6 +165,11 @@ struct CellInspector: View {
     private func retry() {
         guard let job else { return }
         coordinator.retry(job, in: store)
+    }
+
+    private func deleteImage() {
+        store.deleteCell(promptID: cell.promptID, runID: cell.runID)
+        store.saveOrReport()
     }
 
     private var rankBinding: Binding<CellRank> {

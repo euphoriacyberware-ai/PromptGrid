@@ -163,13 +163,61 @@ struct ProjectGridView: View {
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) { onOpenLightbox(ref) }
                 .onTapGesture(count: 1) { selectedCell = ref }
+                .contextMenu { cellMenu(prompt: prompt, run: run, job: job) }
             }
         }
-        .contextMenu {
-            Button("Delete Prompt", role: .destructive) {
-                promptPendingDeletion = prompt
+    }
+
+    /// Per-cell context menu. The rank options are the grid's rank surface (§10)
+    /// and route through the same `store.setRank` coordinating method as the
+    /// inspector and lightbox.
+    @ViewBuilder
+    private func cellMenu(prompt: Prompt, run: Run, job: GenerationJob?) -> some View {
+        let ref = CellRef(promptID: prompt.id, runID: run.id)
+        switch job?.status {
+        case .completed:
+            if let job {
+                Section("Rank") {
+                    rankButton(job, .candidate, "Candidate")
+                    rankButton(job, .shortlisted, "Shortlisted")
+                    rankButton(job, .final, "Final")
+                }
             }
+        case nil:
+            Button("Generate", systemImage: "wand.and.stars") { generateCell(prompt: prompt, run: run) }
+                .disabled(!coordinator.isConfigured)
+        case .failed:
+            if let job {
+                Button("Retry", systemImage: "arrow.clockwise") { coordinator.retry(job, in: store) }
+                    .disabled(!coordinator.isConfigured)
+            }
+        default:
+            EmptyView()
         }
+        Button("Open", systemImage: "arrow.up.backward.and.arrow.down.forward") { onOpenLightbox(ref) }
+    }
+
+    private func rankButton(_ job: GenerationJob, _ rank: CellRank, _ title: String) -> some View {
+        Button {
+            store.setRank(jobID: job.id, to: rank)
+            store.saveOrReport()
+        } label: {
+            Label(title, systemImage: job.rank == rank ? "checkmark" : rankIcon(rank))
+        }
+    }
+
+    private func rankIcon(_ rank: CellRank) -> String {
+        switch rank {
+        case .candidate: return "circle"
+        case .shortlisted: return "star"
+        case .final: return "star.fill"
+        }
+    }
+
+    private func generateCell(prompt: Prompt, run: Run) {
+        guard let job = store.generateCell(promptID: prompt.id, runID: run.id) else { return }
+        store.saveOrReport()
+        coordinator.enqueue([job], for: store)
     }
 
     private func promptCell(_ prompt: Prompt) -> some View {
@@ -206,6 +254,14 @@ struct ProjectGridView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button("Edit Prompt", systemImage: "pencil") {
+                editingPrompt = EditingPrompt(id: prompt.id)
+            }
+            Button("Delete Prompt", systemImage: "trash", role: .destructive) {
+                promptPendingDeletion = prompt
+            }
+        }
     }
 
     private func cellFrame<Content: View>(width: CGFloat, @ViewBuilder _ content: () -> Content) -> some View {

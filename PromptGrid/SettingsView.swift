@@ -1,16 +1,25 @@
 //
-//  ServerSettingsView.swift
+//  SettingsView.swift
 //  PromptGrid
 //
-//  Manual, device-local Draw Things server address entry (Specification §2.3).
+//  App settings: generation behavior + the device-local Draw Things server
+//  address (Specification §2.3). Presented from the sidebar's gear button.
 //
 
 import SwiftUI
 import PromptGridCore
 
-struct ServerSettingsView: View {
+/// Shared preference key: whether creating a run immediately queues generation.
+/// Default off — a new run adds an empty column; the user fills it when ready.
+enum GenerationPreferenceKey {
+    static let autoGenerateNewRuns = "autoGenerateNewRuns"
+}
+
+struct SettingsView: View {
     @EnvironmentObject private var coordinator: GenerationCoordinator
     @Environment(\.dismiss) private var dismiss
+
+    @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
 
     @State private var host = ""
     @State private var portText = ""
@@ -32,6 +41,13 @@ struct ServerSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Generation") {
+                    Toggle("Generate automatically when adding a run", isOn: $autoGenerateNewRuns)
+                    Text("When on, creating a run immediately queues a generation for every prompt. When off, the run's cells start empty — use Generate or Generate Missing when you're ready.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("Server") {
                     TextField("Host", text: $host, prompt: Text("e.g. 192.168.1.10"))
 #if os(iOS)
@@ -79,13 +95,13 @@ struct ServerSettingsView: View {
                 }
 
                 Section {
-                    Text("The address is stored on this device only and is not synced. Each device points at its own Draw Things server.")
+                    Text("The server address is stored on this device only and is not synced. Each device points at its own Draw Things server.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)
-            .navigationTitle("Server Settings")
+            .navigationTitle("Settings")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -102,7 +118,7 @@ struct ServerSettingsView: View {
             useTLS = coordinator.settings.useTLS
             sharedSecret = coordinator.settings.sharedSecret
         }
-        .frame(minWidth: 380, minHeight: 320)
+        .frame(minWidth: 420, minHeight: 380)
     }
 
     private func runTest() {

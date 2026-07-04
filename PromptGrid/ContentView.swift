@@ -77,7 +77,7 @@ struct ContentView: View {
         }
         .task { library.start() }
         .sheet(isPresented: $isPresentingSettings) {
-            ServerSettingsView()
+            SettingsView()
         }
         .alert("New Project", isPresented: $isPresentingNewProject) {
             TextField("Name", text: $newProjectName)

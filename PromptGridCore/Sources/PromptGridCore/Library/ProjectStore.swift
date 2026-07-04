@@ -133,9 +133,13 @@ public final class ProjectStore {
     /// that a caller should enqueue — the actual queue submission is wired up in
     /// Phase 6.
     @discardableResult
-    public func addRun(seed: Int, seedWasRandom: Bool) -> (run: Run, jobs: [GenerationJob]) {
+    public func addRun(seed: Int, seedWasRandom: Bool, generateJobs: Bool = true) -> (run: Run, jobs: [GenerationJob]) {
         let run = Run(index: project.runs.count + 1, seed: seed, seedWasRandom: seedWasRandom)
         project.runs.append(run)
+
+        // When `generateJobs` is false the run's cells start empty — the user
+        // fills them later (single-cell Generate, or Generate Missing).
+        guard generateJobs else { return (run, []) }
 
         var created: [GenerationJob] = []
         for index in project.prompts.indices {

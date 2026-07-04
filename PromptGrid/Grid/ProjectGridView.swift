@@ -24,6 +24,7 @@ struct ProjectGridView: View {
     @State private var isPresentingExport = false
     @State private var cellPendingDeletion: CellRef?
     @State private var isConfirmingGenerateMissing = false
+    @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
 
     private var missingCount: Int { store.missingCellCount() }
 
@@ -363,10 +364,14 @@ struct ProjectGridView: View {
     }
 
     private func createRun(seed: Int, seedWasRandom: Bool) {
-        let created = store.addRun(seed: seed, seedWasRandom: seedWasRandom)
+        // Off by default: a new run adds an empty column. When on, it queues
+        // a generation for every prompt right away.
+        let created = store.addRun(seed: seed, seedWasRandom: seedWasRandom,
+                                   generateJobs: autoGenerateNewRuns)
         store.saveOrReport()
-        // Persist the pending records first, then submit to the shared queue.
-        coordinator.enqueue(created.jobs, for: store)
+        if autoGenerateNewRuns {
+            coordinator.enqueue(created.jobs, for: store)
+        }
     }
 
     private func deleteRun(_ run: Run) {

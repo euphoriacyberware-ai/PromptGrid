@@ -30,6 +30,18 @@ struct ProjectStoreRunTests {
         }
     }
 
+    @Test("A run added with generateJobs:false starts with empty cells")
+    func addRunWithoutJobs() {
+        let store = makeStore(prompts: 3)
+        let (run, jobs) = store.addRun(seed: 1, seedWasRandom: false, generateJobs: false)
+        #expect(jobs.isEmpty)
+        #expect(store.project.runs.count == 1)
+        for prompt in store.project.prompts {
+            #expect(prompt.jobs[run.id] == nil)   // empty
+        }
+        #expect(store.missingCellCount() == 3)     // fillable later
+    }
+
     @Test("Wildcards are resolved and frozen at run creation")
     func addRunFreezesResolvedPrompt() {
         var project = Project(name: "Grid")

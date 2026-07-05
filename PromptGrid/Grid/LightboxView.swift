@@ -109,13 +109,13 @@ struct LightboxView: View {
                 Color.black.opacity(0.06)
                 imageContent(container: geo.size)
 
-                chevron("chevron.left", disabled: (runIndex ?? 0) <= 0) { move(dPrompt: 0, dRun: -1) }
+                chevron("chevron.left", label: "Previous run", disabled: (runIndex ?? 0) <= 0) { move(dPrompt: 0, dRun: -1) }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                chevron("chevron.right", disabled: (runIndex ?? 0) >= runs.count - 1) { move(dPrompt: 0, dRun: 1) }
+                chevron("chevron.right", label: "Next run", disabled: (runIndex ?? 0) >= runs.count - 1) { move(dPrompt: 0, dRun: 1) }
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                chevron("chevron.up", disabled: (promptIndex ?? 0) <= 0) { move(dPrompt: -1, dRun: 0) }
+                chevron("chevron.up", label: "Previous prompt", disabled: (promptIndex ?? 0) <= 0) { move(dPrompt: -1, dRun: 0) }
                     .frame(maxHeight: .infinity, alignment: .top)
-                chevron("chevron.down", disabled: (promptIndex ?? 0) >= prompts.count - 1) { move(dPrompt: 1, dRun: 0) }
+                chevron("chevron.down", label: "Next prompt", disabled: (promptIndex ?? 0) >= prompts.count - 1) { move(dPrompt: 1, dRun: 0) }
                     .frame(maxHeight: .infinity, alignment: .bottom)
             }
             .onAppear { containerSize = geo.size }
@@ -187,12 +187,13 @@ struct LightboxView: View {
         .padding()
     }
 
-    private func chevron(_ symbol: String, disabled: Bool, action: @escaping () -> Void) -> some View {
+    private func chevron(_ symbol: String, label: String, disabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.title2).padding(10)
                 .background(.thinMaterial, in: Circle())
         }
         .buttonStyle(.plain).padding(8).disabled(disabled).opacity(disabled ? 0.25 : 1)
+        .accessibilityLabel(label)
     }
 
     // MARK: Bottom bar
@@ -212,11 +213,12 @@ struct LightboxView: View {
             HStack(spacing: 6) {
                 Button("Fit") { zoom = 1 }.disabled(abs(zoom - 1) < 0.001)
                 Button { zoom = max(zoom / 1.5, 1) } label: { Image(systemName: "minus.magnifyingglass") }
-                    .disabled(zoom <= 1.001)
+                    .disabled(zoom <= 1.001).accessibilityLabel("Zoom out")
                 Text("\(Int((actualScale * 100).rounded()))%")
                     .font(.caption.monospacedDigit()).frame(width: 50)
+                    .accessibilityLabel("Zoom \(Int((actualScale * 100).rounded())) percent")
                 Button { zoom = min(zoom * 1.5, maxZoom) } label: { Image(systemName: "plus.magnifyingglass") }
-                    .disabled(zoom >= maxZoom - 0.001)
+                    .disabled(zoom >= maxZoom - 0.001).accessibilityLabel("Zoom in")
                 Button("100%") { zoom = maxZoom }.disabled(abs(effectiveZoom - maxZoom) < 0.001)
             }
             .buttonStyle(.bordered)
@@ -237,6 +239,7 @@ struct LightboxView: View {
             Button(role: .destructive) { isConfirmingDelete = true } label: {
                 Image(systemName: "trash")
             }
+            .accessibilityLabel("Delete image")
             .confirmationDialog("Delete Image?", isPresented: $isConfirmingDelete) {
                 Button("Delete Image", role: .destructive, action: deleteImage)
                 Button("Cancel", role: .cancel) {}

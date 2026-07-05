@@ -46,11 +46,16 @@ struct ContentView: View {
             .navigationTitle("Projects")
             .overlay {
                 if library.items.isEmpty {
-                    ContentUnavailableView(
-                        "No Projects",
-                        systemImage: "square.grid.3x3",
-                        description: Text("Create a project to get started.")
-                    )
+                    ContentUnavailableView {
+                        Label("No Projects", systemImage: "square.grid.3x3")
+                    } description: {
+                        Text("Create your first project to start building a grid of prompts and seeds.")
+                    } actions: {
+                        Button("New Project") {
+                            newProjectName = ""
+                            isPresentingNewProject = true
+                        }
+                    }
                 }
             }
             .toolbar {
@@ -61,13 +66,17 @@ struct ContentView: View {
                     } label: {
                         Label("New Project", systemImage: "plus")
                     }
+                    .keyboardShortcut("n", modifiers: .command)
+                    .help("New project")
                 }
                 ToolbarItem {
                     Button {
                         isPresentingSettings = true
                     } label: {
-                        Label("Server Settings", systemImage: "gearshape")
+                        Label("Settings", systemImage: "gearshape")
                     }
+                    .keyboardShortcut(",", modifiers: .command)
+                    .help("Settings")
                 }
             }
 #if os(macOS)

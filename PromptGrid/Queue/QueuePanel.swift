@@ -149,6 +149,7 @@ struct QueuePanel: View {
                         }
                         .buttonStyle(.borderless)
                         .help("Cancel this generation")
+                        .accessibilityLabel("Cancel generation")
                     }
                     if let progress = queue.currentProgress {
                         CurrentProgressView(progress: progress)
@@ -173,6 +174,7 @@ struct QueuePanel: View {
                             Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                         }
                         .buttonStyle(.borderless)
+                        .accessibilityLabel("Cancel \(request.name)")
                     }
                 }
                 .onMove { source, destination in

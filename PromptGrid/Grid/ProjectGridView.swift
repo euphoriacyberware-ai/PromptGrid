@@ -55,6 +55,8 @@ struct ProjectGridView: View {
                 Button(action: addPrompt) {
                     Label("Add Prompt", systemImage: "plus.rectangle")
                 }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .help("Add a prompt row")
             }
             ToolbarItem {
                 Button {
@@ -62,6 +64,8 @@ struct ProjectGridView: View {
                 } label: {
                     Label("New Run", systemImage: "plus.rectangle.on.rectangle")
                 }
+                .keyboardShortcut("r", modifiers: .command)
+                .help("Add a run (seed column)")
                 .popover(isPresented: $isPresentingSeedPicker, arrowEdge: .bottom) {
                     SeedPickerPopover(isPresented: $isPresentingSeedPicker) { seed, random in
                         createRun(seed: seed, seedWasRandom: random)
@@ -74,6 +78,7 @@ struct ProjectGridView: View {
                 } label: {
                     Label("Generate Missing", systemImage: "wand.and.stars")
                 }
+                .keyboardShortcut("g", modifiers: .command)
                 .disabled(missingCount == 0 || !coordinator.isConfigured)
                 .help("Generate every empty cell")
             }
@@ -88,6 +93,8 @@ struct ProjectGridView: View {
                 } label: {
                     Label("Export", systemImage: "square.and.arrow.up")
                 }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .help("Export images")
             }
             ToolbarItem {
                 Button {
@@ -95,6 +102,7 @@ struct ProjectGridView: View {
                 } label: {
                     Label("Project Settings", systemImage: "slider.horizontal.3")
                 }
+                .help("Project generation defaults")
             }
         }
         .confirmationDialog(
@@ -228,6 +236,11 @@ struct ProjectGridView: View {
                 .onTapGesture(count: 2) { onOpenLightbox(ref) }
                 .onTapGesture(count: 1) { selectedCell = ref }
                 .contextMenu { cellMenu(prompt: prompt, run: run, job: job) }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Row \(prompt.order + 1), Run \(run.index), \(cellStatusDescription(job))")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { onOpenLightbox(ref) }
+                .accessibilityAction(named: "Select") { selectedCell = ref }
             }
         }
     }
@@ -273,6 +286,22 @@ struct ProjectGridView: View {
             store.saveOrReport()
         } label: {
             Label(title, systemImage: job.rank == rank ? "checkmark" : rankIcon(rank))
+        }
+    }
+
+    private func cellStatusDescription(_ job: GenerationJob?) -> String {
+        switch job?.status {
+        case nil: return "empty"
+        case .pending: return "pending"
+        case .generating: return "generating"
+        case .failed: return "failed"
+        case .cancelled: return "cancelled"
+        case .completed:
+            switch job?.rank {
+            case .final: return "completed, ranked final"
+            case .shortlisted: return "completed, shortlisted"
+            default: return "completed"
+            }
         }
     }
 

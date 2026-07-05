@@ -49,6 +49,7 @@ struct SeedPickerPopover: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Roll a new seed")
+                    .accessibilityLabel("Roll a new seed")
                 } else {
                     TextField("Seed", text: $fixedSeedText)
                         .textFieldStyle(.roundedBorder)
@@ -61,6 +62,7 @@ struct SeedPickerPopover: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Roll a new seed")
+                    .accessibilityLabel("Roll a new seed")
                 }
             }
 

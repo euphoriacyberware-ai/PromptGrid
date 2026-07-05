@@ -23,7 +23,16 @@ struct ProjectGridView: View {
     @State private var editingPrompt: EditingPrompt?
     @State private var isPresentingExport = false
     @State private var cellPendingDeletion: CellRef?
+    @State private var rowImagesPendingDeletion: Prompt?
+    @State private var columnImagesPendingDeletion: Run?
     @State private var isConfirmingGenerateMissing = false
+    // Multi-select (§ user request): a set of cells acted on together. On macOS
+    // it's driven by ⌘/⇧-click; on iOS by an explicit Select mode toggle.
+    @State private var selection: Set<CellRef> = []
+    @State private var selectionAnchor: CellRef?
+    @State private var isSelectMode = false
+    @State private var isConfirmingRegenerate = false
+    @State private var isConfirmingDeleteSelection = false
     @State private var isPresentingProjectSettings = false
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
     @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
@@ -40,6 +49,89 @@ struct ProjectGridView: View {
     private var prompts: [Prompt] { store.project.prompts }
 
     var body: some View {
+        bodyWithDialogs
+            .overlay(alignment: .bottom) { selectionBar }
+            .confirmationDialog(
+                "Regenerate \(selection.count) Cell\(selection.count == 1 ? "" : "s")?",
+                isPresented: $isConfirmingRegenerate
+            ) {
+                Button("Regenerate \(selection.count)", role: .destructive) { regenerateSelection() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Deletes any existing images in the selected cells and generates them again with re-rolled wildcards. This can’t be undone.")
+            }
+            .confirmationDialog(
+                "Delete \(selectedFilledRefs.count) Selected Image\(selectedFilledRefs.count == 1 ? "" : "s")?",
+                isPresented: $isConfirmingDeleteSelection
+            ) {
+                Button("Delete \(selectedFilledRefs.count)", role: .destructive) { deleteSelection() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Deletes the images in the selected cells, reverting them to empty. This can’t be undone.")
+            }
+    }
+
+    private var bodyWithDialogs: some View {
+        gridWithToolbar
+            .confirmationDialog(
+                "Delete Row Images?",
+                isPresented: Binding(
+                    get: { rowImagesPendingDeletion != nil },
+                    set: { if !$0 { rowImagesPendingDeletion = nil } }
+                ),
+                presenting: rowImagesPendingDeletion
+            ) { prompt in
+                let count = store.filledCellCount(inRow: prompt.id)
+                Button("Delete \(count) Image\(count == 1 ? "" : "s")", role: .destructive) {
+                    deleteRowImages(prompt)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { prompt in
+                let count = store.filledCellCount(inRow: prompt.id)
+                Text("This deletes \(count) image\(count == 1 ? "" : "s") across every run in this row, leaving the prompt in place. This can’t be undone.")
+            }
+            .confirmationDialog(
+                columnImagesPendingDeletion.map { "Delete Run \($0.index) Images?" } ?? "Delete Column Images?",
+                isPresented: Binding(
+                    get: { columnImagesPendingDeletion != nil },
+                    set: { if !$0 { columnImagesPendingDeletion = nil } }
+                ),
+                presenting: columnImagesPendingDeletion
+            ) { run in
+                let count = store.filledCellCount(inColumn: run.id)
+                Button("Delete \(count) Image\(count == 1 ? "" : "s")", role: .destructive) {
+                    deleteColumnImages(run)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { run in
+                let count = store.filledCellCount(inColumn: run.id)
+                Text("This deletes \(count) image\(count == 1 ? "" : "s") across every prompt in this run, leaving the seed column in place. This can’t be undone.")
+            }
+            .confirmationDialog(
+                generateMissingTitle,
+                isPresented: $isConfirmingGenerateMissing
+            ) {
+                Button("Generate \(missingCount)") { generateMissing() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Queues a generation for every empty cell in the grid, re-rolling wildcards and using each prompt’s current settings. This can be a large batch.")
+            }
+            .sheet(item: $editingPrompt) { editing in
+                PromptDetailEditor(store: store, promptID: editing.id)
+            }
+            .sheet(isPresented: $isPresentingExport) {
+                ExportView(store: store)
+            }
+            .sheet(isPresented: $isPresentingProjectSettings) {
+                ProjectSettingsView(store: store)
+            }
+    }
+
+    private var generateMissingTitle: String {
+        "Generate \(missingCount) Missing Image\(missingCount == 1 ? "" : "s")?"
+    }
+
+    private var gridWithToolbar: some View {
         VStack(spacing: 0) {
             if let queue = coordinator.queue {
                 GenerationStatusBanner(queue: queue)
@@ -104,6 +196,20 @@ struct ProjectGridView: View {
                 }
                 .help("Project generation defaults")
             }
+#if os(iOS)
+            // iOS has no modifier-click, so multi-select needs an explicit mode.
+            if !prompts.isEmpty {
+                ToolbarItem {
+                    Button {
+                        isSelectMode.toggle()
+                        if !isSelectMode { clearSelection() }
+                    } label: {
+                        Label(isSelectMode ? "Done" : "Select",
+                              systemImage: isSelectMode ? "checkmark.circle.fill" : "checkmark.circle")
+                    }
+                }
+            }
+#endif
         }
         .confirmationDialog(
             "Delete Prompt?",
@@ -143,24 +249,6 @@ struct ProjectGridView: View {
             Button("Cancel", role: .cancel) {}
         } message: { _ in
             Text("This deletes the generated image. The cell becomes empty and can be generated again. This can’t be undone.")
-        }
-        .confirmationDialog(
-            "Generate \(missingCount) Missing Image\(missingCount == 1 ? "" : "s")?",
-            isPresented: $isConfirmingGenerateMissing
-        ) {
-            Button("Generate \(missingCount)") { generateMissing() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Queues a generation for every empty cell in the grid, re-rolling wildcards and using each prompt’s current settings. This can be a large batch.")
-        }
-        .sheet(item: $editingPrompt) { editing in
-            PromptDetailEditor(store: store, promptID: editing.id)
-        }
-        .sheet(isPresented: $isPresentingExport) {
-            ExportView(store: store)
-        }
-        .sheet(isPresented: $isPresentingProjectSettings) {
-            ProjectSettingsView(store: store)
         }
     }
 
@@ -205,7 +293,14 @@ struct ProjectGridView: View {
                     }
                 }
                 .contextMenu {
-                    Button("Delete Run", role: .destructive) {
+                    Button("Select Column", systemImage: "checklist") { selectColumn(run.id) }
+                    Divider()
+                    if store.filledCellCount(inColumn: run.id) > 0 {
+                        Button("Delete Column Images…", systemImage: "trash", role: .destructive) {
+                            columnImagesPendingDeletion = run
+                        }
+                    }
+                    Button("Delete Run", systemImage: "rectangle.badge.minus", role: .destructive) {
                         runPendingDeletion = run
                     }
                 }
@@ -221,26 +316,40 @@ struct ProjectGridView: View {
             ForEach(runs) { run in
                 let ref = CellRef(promptID: prompt.id, runID: run.id)
                 let job = prompt.jobs[run.id]
+                let isMultiSelected = selection.contains(ref)
                 GridCellView(
                     job: job,
                     thumbnailData: job.flatMap { store.thumbnailData(for: $0) },
                     size: cellSize
                 )
                 .overlay {
-                    if selectedCell == ref {
+                    if isMultiSelected || selectedCell == ref {
                         RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(Color.accentColor, lineWidth: 2)
+                            .strokeBorder(Color.accentColor, lineWidth: isMultiSelected ? 3 : 2)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if isMultiSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.white, Color.accentColor)
+                            .padding(4)
                     }
                 }
                 .contentShape(Rectangle())
-                .onTapGesture(count: 2) { onOpenLightbox(ref) }
-                .onTapGesture(count: 1) { selectedCell = ref }
+                .modifier(CellSelectionGesture(
+                    onDoubleTap: { onOpenLightbox(ref) },
+                    onPlainTap: { plainTap(ref) },
+                    onToggle: { toggleSelection(ref) },
+                    onExtend: { extendSelection(to: ref) },
+                    isSelectMode: isSelectMode
+                ))
                 .contextMenu { cellMenu(prompt: prompt, run: run, job: job) }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Row \(prompt.order + 1), Run \(run.index), \(cellStatusDescription(job))")
+                .accessibilityLabel("Row \(prompt.order + 1), Run \(run.index), \(cellStatusDescription(job))\(isMultiSelected ? ", selected" : "")")
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { onOpenLightbox(ref) }
-                .accessibilityAction(named: "Select") { selectedCell = ref }
+                .accessibilityAction(named: isMultiSelected ? "Deselect" : "Add to selection") { toggleSelection(ref) }
             }
         }
     }
@@ -277,6 +386,157 @@ struct ProjectGridView: View {
             Button("Delete Image…", systemImage: "trash", role: .destructive) {
                 cellPendingDeletion = ref
             }
+        }
+    }
+
+    // MARK: Multi-select
+
+    /// All cells in visual (row-major) order — the basis for ⇧-click ranges.
+    private var orderedCells: [CellRef] {
+        prompts.flatMap { p in runs.map { CellRef(promptID: p.id, runID: $0.id) } }
+    }
+
+    private func job(for ref: CellRef) -> GenerationJob? {
+        prompts.first { $0.id == ref.promptID }?.jobs[ref.runID]
+    }
+
+    private var selectedFilledRefs: [CellRef] { selection.filter { job(for: $0) != nil } }
+    private var selectedEmptyRefs: [CellRef] { selection.filter { job(for: $0) == nil } }
+    private var selectedCompletedJobs: [GenerationJob] {
+        selection.compactMap { job(for: $0) }.filter { $0.status == .completed }
+    }
+
+    private func inFlightJobIDs(in refs: [CellRef]) -> [UUID] {
+        refs.compactMap { job(for: $0) }
+            .filter { $0.status == .pending || $0.status == .generating }
+            .map(\.id)
+    }
+
+    private func plainTap(_ ref: CellRef) {
+        selectedCell = ref
+        selection.removeAll()
+        selectionAnchor = ref
+    }
+
+    private func toggleSelection(_ ref: CellRef) {
+        if selection.contains(ref) { selection.remove(ref) } else { selection.insert(ref) }
+        selectionAnchor = ref
+        selectedCell = ref
+    }
+
+    private func extendSelection(to ref: CellRef) {
+        let cells = orderedCells
+        guard let anchor = selectionAnchor,
+              let a = cells.firstIndex(of: anchor),
+              let b = cells.firstIndex(of: ref) else {
+            toggleSelection(ref); return
+        }
+        selection.formUnion(cells[min(a, b)...max(a, b)])
+        selectedCell = ref
+    }
+
+    private func selectRow(_ promptID: UUID) {
+        selection.formUnion(runs.map { CellRef(promptID: promptID, runID: $0.id) })
+    }
+
+    private func selectColumn(_ runID: UUID) {
+        selection.formUnion(prompts.map { CellRef(promptID: $0.id, runID: runID) })
+    }
+
+    private func selectAll() { selection = Set(orderedCells) }
+    private func invertSelection() { selection = Set(orderedCells).subtracting(selection) }
+    private func clearSelection() { selection.removeAll(); selectionAnchor = nil }
+
+    private func generateSelection() {
+        let created = selectedEmptyRefs.compactMap {
+            store.generateCell(promptID: $0.promptID, runID: $0.runID)
+        }
+        store.saveOrReport()
+        coordinator.enqueue(created, for: store)
+    }
+
+    private func regenerateSelection() {
+        let refs = Array(selection)
+        coordinator.cancel(jobIDs: inFlightJobIDs(in: refs))
+        for ref in refs { store.deleteCell(promptID: ref.promptID, runID: ref.runID) }
+        let created = refs.compactMap {
+            store.generateCell(promptID: $0.promptID, runID: $0.runID)
+        }
+        store.saveOrReport()
+        coordinator.enqueue(created, for: store)
+    }
+
+    private func deleteSelection() {
+        let refs = selectedFilledRefs
+        coordinator.cancel(jobIDs: inFlightJobIDs(in: refs))
+        for ref in refs { store.deleteCell(promptID: ref.promptID, runID: ref.runID) }
+        store.saveOrReport()
+        selection.subtract(refs)
+        if let selected = selectedCell, refs.contains(selected) { selectedCell = nil }
+    }
+
+    private func rankSelection(_ rank: CellRank) {
+        for job in selectedCompletedJobs { store.setRank(jobID: job.id, to: rank) }
+        store.saveOrReport()
+    }
+
+    /// Floating action bar shown while a multi-selection is active.
+    @ViewBuilder
+    private var selectionBar: some View {
+        if !selection.isEmpty {
+            let count = selection.count
+            HStack(spacing: 12) {
+                Text("\(count) selected").font(.callout).bold().fixedSize()
+                Divider().frame(height: 16)
+                Button { generateSelection() } label: {
+                    Label("Generate", systemImage: "wand.and.stars")
+                }
+                .disabled(selectedEmptyRefs.isEmpty || !coordinator.isConfigured)
+                .help("Generate the empty selected cells")
+                Button { isConfirmingRegenerate = true } label: {
+                    Label("Regenerate", systemImage: "arrow.clockwise")
+                }
+                .disabled(!coordinator.isConfigured)
+                .help("Delete and regenerate every selected cell")
+                Menu {
+                    Button("Candidate") { rankSelection(.candidate) }
+                    Button("Shortlisted") { rankSelection(.shortlisted) }
+                    Button("Final") { rankSelection(.final) }
+                } label: {
+                    Label("Rank", systemImage: "star")
+                }
+                .disabled(selectedCompletedJobs.isEmpty)
+                .fixedSize()
+                Button(role: .destructive) { isConfirmingDeleteSelection = true } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .disabled(selectedFilledRefs.isEmpty)
+                .help("Delete the images in the selected cells")
+                Menu {
+                    Button("Select All") { selectAll() }
+                    Button("Invert Selection") { invertSelection() }
+                } label: {
+                    Label("Select", systemImage: "checklist")
+                }
+                .fixedSize()
+                Divider().frame(height: 16)
+                Button { clearSelection() } label: {
+                    Label("Clear", systemImage: "xmark")
+                }
+                .keyboardShortcut(.cancelAction)
+                .help("Clear the selection")
+            }
+#if os(macOS)
+            .labelStyle(.titleAndIcon)
+#else
+            .labelStyle(.iconOnly)
+#endif
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(.quaternary))
+            .shadow(radius: 8, y: 2)
+            .padding(.bottom, 16)
         }
     }
 
@@ -325,6 +585,20 @@ struct ProjectGridView: View {
         if selectedCell == ref { selectedCell = nil }
     }
 
+    private func deleteRowImages(_ prompt: Prompt) {
+        coordinator.cancel(jobIDs: store.cancellableJobIDs(forPromptID: prompt.id))
+        store.deleteRowImages(promptID: prompt.id)
+        store.saveOrReport()
+        if let selected = selectedCell, selected.promptID == prompt.id { selectedCell = nil }
+    }
+
+    private func deleteColumnImages(_ run: Run) {
+        coordinator.cancel(jobIDs: store.cancellableJobIDs(forRunID: run.id))
+        store.deleteColumnImages(runID: run.id)
+        store.saveOrReport()
+        if let selected = selectedCell, selected.runID == run.id { selectedCell = nil }
+    }
+
     private func generateMissing() {
         let created = store.generateMissing(order: generateMissingOrder)
         store.saveOrReport()
@@ -369,7 +643,14 @@ struct ProjectGridView: View {
             Button("Edit Prompt", systemImage: "pencil") {
                 editingPrompt = EditingPrompt(id: prompt.id)
             }
-            Button("Delete Prompt", systemImage: "trash", role: .destructive) {
+            Button("Select Row", systemImage: "checklist") { selectRow(prompt.id) }
+            Divider()
+            if store.filledCellCount(inRow: prompt.id) > 0 {
+                Button("Delete Row Images…", systemImage: "trash", role: .destructive) {
+                    rowImagesPendingDeletion = prompt
+                }
+            }
+            Button("Delete Prompt", systemImage: "rectangle.badge.minus", role: .destructive) {
                 promptPendingDeletion = prompt
             }
         }
@@ -433,5 +714,32 @@ struct ProjectGridView: View {
     private func deleteMessage(for run: Run) -> String {
         let count = store.completedImageCount(forRunID: run.id)
         return "This deletes \(count) generated image\(count == 1 ? "" : "s"). This can’t be undone."
+    }
+}
+
+/// Wires a grid cell's tap gestures, branching by platform. macOS uses
+/// ⌘-click (toggle) and ⇧-click (range extend) alongside the plain click;
+/// iOS toggles on a single tap while an explicit Select mode is active.
+private struct CellSelectionGesture: ViewModifier {
+    let onDoubleTap: () -> Void
+    let onPlainTap: () -> Void
+    let onToggle: () -> Void
+    let onExtend: () -> Void
+    let isSelectMode: Bool
+
+    func body(content: Content) -> some View {
+#if os(macOS)
+        content
+            .highPriorityGesture(TapGesture().modifiers(.command).onEnded(onToggle))
+            .highPriorityGesture(TapGesture().modifiers(.shift).onEnded(onExtend))
+            .onTapGesture(count: 2, perform: onDoubleTap)
+            .onTapGesture(count: 1, perform: onPlainTap)
+#else
+        content
+            .onTapGesture(count: 2, perform: onDoubleTap)
+            .onTapGesture(count: 1) {
+                if isSelectMode { onToggle() } else { onPlainTap() }
+            }
+#endif
     }
 }

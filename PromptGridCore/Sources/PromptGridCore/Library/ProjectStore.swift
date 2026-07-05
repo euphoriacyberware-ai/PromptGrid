@@ -176,6 +176,18 @@ public final class ProjectStore {
         }
     }
 
+    /// In-flight jobs in a prompt row that must be cancelled in the queue before
+    /// the row's cells are cleared (mirrors `cancellableJobIDs(forRunID:)`).
+    public func cancellableJobIDs(forPromptID promptID: UUID) -> [UUID] {
+        guard let prompt = project.prompts.first(where: { $0.id == promptID }) else { return [] }
+        return prompt.jobs.values.compactMap { job in
+            switch job.status {
+            case .pending, .generating: return job.id
+            case .completed, .failed, .cancelled: return nil
+            }
+        }
+    }
+
     /// Number of completed images in a run — the `N` in the delete confirmation
     /// copy (Specification §7).
     public func completedImageCount(forRunID runID: UUID) -> Int {
@@ -290,6 +302,28 @@ public final class ProjectStore {
             job.rank = rank
             project.prompts[promptIndex].jobs[entry.key] = job
         }
+    }
+
+    /// Cells with a job in a prompt row (across all runs).
+    public func filledCellCount(inRow promptID: UUID) -> Int {
+        project.prompts.first { $0.id == promptID }?.jobs.count ?? 0
+    }
+
+    /// Cells with a job in a run column (across all prompts).
+    public func filledCellCount(inColumn runID: UUID) -> Int {
+        project.prompts.reduce(0) { $0 + ($1.jobs[runID] != nil ? 1 : 0) }
+    }
+
+    /// Clear every cell in a prompt row — deletes its jobs and images, leaving
+    /// the prompt in place (regeneratable).
+    public func deleteRowImages(promptID: UUID) {
+        for run in project.runs { deleteCell(promptID: promptID, runID: run.id) }
+    }
+
+    /// Clear every cell in a run column — deletes its jobs and images, leaving
+    /// the run (seed column) in place. Distinct from `deleteRun`.
+    public func deleteColumnImages(runID: UUID) {
+        for prompt in project.prompts { deleteCell(promptID: prompt.id, runID: runID) }
     }
 
     /// Delete a single cell's job and its image files, reverting the cell to

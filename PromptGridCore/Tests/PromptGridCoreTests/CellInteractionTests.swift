@@ -117,6 +117,34 @@ struct CellInteractionTests {
         #expect(store.generateCell(promptID: promptID, runID: run.id) != nil)
     }
 
+    @Test("Delete Row Images clears every cell in a prompt, keeping other rows")
+    func deleteRowImages() {
+        let store = storeWithGrid(prompts: 2)
+        store.addRun(seed: 1, seedWasRandom: false)
+        store.addRun(seed: 2, seedWasRandom: false)
+        let p0 = store.project.prompts[0].id
+        let p1 = store.project.prompts[1].id
+
+        #expect(store.filledCellCount(inRow: p0) == 2)
+        store.deleteRowImages(promptID: p0)
+        #expect(store.filledCellCount(inRow: p0) == 0)   // row cleared
+        #expect(store.filledCellCount(inRow: p1) == 2)   // other row untouched
+    }
+
+    @Test("Delete Column Images clears every cell in a run, keeping the column")
+    func deleteColumnImages() {
+        let store = storeWithGrid(prompts: 2)
+        let (r0, _) = store.addRun(seed: 1, seedWasRandom: false)
+        let (r1, _) = store.addRun(seed: 2, seedWasRandom: false)
+
+        #expect(store.filledCellCount(inColumn: r0.id) == 2)
+        store.deleteColumnImages(runID: r0.id)
+        #expect(store.filledCellCount(inColumn: r0.id) == 0)  // column cleared
+        #expect(store.filledCellCount(inColumn: r1.id) == 2)  // other column untouched
+        // The run (seed column) itself still exists.
+        #expect(store.project.runs.contains { $0.id == r0.id })
+    }
+
     private func rank(_ store: ProjectStore, _ jobID: UUID) -> CellRank? {
         for prompt in store.project.prompts {
             if let job = prompt.jobs.values.first(where: { $0.id == jobID }) { return job.rank }

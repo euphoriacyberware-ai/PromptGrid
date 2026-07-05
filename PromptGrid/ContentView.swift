@@ -20,6 +20,12 @@ struct ContentView: View {
     @State private var newProjectName = ""
     @State private var projectPendingDeletion: ProjectListItem?
     @State private var isPresentingSettings = false
+    @State private var projectSettings: ProjectSettingsPresentation?
+
+    private struct ProjectSettingsPresentation: Identifiable {
+        let id: URL
+        let store: ProjectStore
+    }
 
     var body: some View {
         NavigationSplitView {
@@ -28,7 +34,10 @@ struct ContentView: View {
                     ProjectRow(item: item)
                         .tag(item.id)
                         .contextMenu {
-                            Button("Delete…", role: .destructive) {
+                            Button("Project Settings…", systemImage: "slider.horizontal.3") {
+                                openProjectSettings(item)
+                            }
+                            Button("Delete…", systemImage: "trash", role: .destructive) {
                                 projectPendingDeletion = item
                             }
                         }
@@ -80,6 +89,9 @@ struct ContentView: View {
         .sheet(isPresented: $isPresentingSettings) {
             SettingsView(library: library)
         }
+        .sheet(item: $projectSettings) { presentation in
+            ProjectSettingsView(store: presentation.store)
+        }
         .alert("New Project", isPresented: $isPresentingNewProject) {
             TextField("Name", text: $newProjectName)
             Button("Create") { createProject() }
@@ -110,6 +122,21 @@ struct ContentView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(library.lastError ?? "")
+        }
+    }
+
+    private func openProjectSettings(_ item: ProjectListItem) {
+        // Reuse the live store if this project is already open, so the change is
+        // reflected in the detail pane. Otherwise load it from disk.
+        if let openStore = coordinator.openStore(for: item.url) {
+            projectSettings = ProjectSettingsPresentation(id: item.url, store: openStore)
+            return
+        }
+        do {
+            let store = try ProjectStore(contentsOf: item.url)
+            projectSettings = ProjectSettingsPresentation(id: item.url, store: store)
+        } catch {
+            library.lastError = error.localizedDescription
         }
     }
 

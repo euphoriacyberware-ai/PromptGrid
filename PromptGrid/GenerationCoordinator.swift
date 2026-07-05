@@ -94,6 +94,14 @@ final class GenerationCoordinator: ObservableObject {
         activeStore = store
     }
 
+    /// The live store for a project if it's currently open, so editors (e.g.
+    /// project settings from the sidebar) act on the same instance the detail
+    /// pane shows rather than a stale second copy.
+    func openStore(for url: URL) -> ProjectStore? {
+        guard let active = activeStore, active.url == url else { return nil }
+        return active
+    }
+
     // MARK: Enqueue / cancel (the Phase 5 seam, now live)
 
     func enqueue(_ jobs: [GenerationJob], for store: ProjectStore) {

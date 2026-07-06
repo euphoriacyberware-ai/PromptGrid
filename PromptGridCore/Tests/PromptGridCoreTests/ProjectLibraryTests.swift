@@ -78,6 +78,18 @@ struct ProjectLibraryTests {
         #expect(FileManager.default.fileExists(atPath: renamed.url.path))
         #expect(library.items.map(\.displayName) == ["Final Cut"])
         #expect(try library.loadProject(renamed).name == "Final Cut")     // manifest patched
+        // The returned URL must be identical to the one the scanner lists, or the
+        // sidebar can't reselect the renamed project (URL is the selection id).
+        #expect(library.items.first?.id == renamed.id)
+    }
+
+    @Test("Listed URLs match the ones the API returns (selection identity)")
+    func urlIdentityIsStable() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let created = try library.createProject(named: "Identity")
+        #expect(library.items.first?.id == created.id)   // create → scan identity
     }
 
     @Test("Renaming preserves generated image files")

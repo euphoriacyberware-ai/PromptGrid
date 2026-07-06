@@ -29,9 +29,15 @@ public enum LibraryEnumerator {
             .filter { $0.pathExtension == PromptGridCore.projectFileExtension }
             .map { url -> ProjectListItem in
                 let mod = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+                // `contentsOfDirectory` returns directory-package URLs with a
+                // trailing slash and a resolved `/private` prefix. Rebuild the URL
+                // from `directoryURL` so it's byte-identical to the ones the library
+                // API constructs (createProject / renameProject) — the URL is the
+                // selection identity, and a mismatch silently drops the selection.
+                let canonical = directoryURL.appendingPathComponent(url.lastPathComponent, isDirectory: false)
                 return ProjectListItem(
-                    url: url,
-                    displayName: url.deletingPathExtension().lastPathComponent,
+                    url: canonical,
+                    displayName: canonical.deletingPathExtension().lastPathComponent,
                     modifiedAt: mod
                 )
             }

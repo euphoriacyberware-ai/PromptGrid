@@ -34,6 +34,8 @@ struct ProjectGridView: View {
     @State private var isSelectMode = false
     @State private var isConfirmingRegenerate = false
     @State private var isConfirmingDeleteSelection = false
+    // Drag-to-reorder: the prompt row currently under a drag.
+    @State private var dropTargetPromptID: UUID?
     @State private var isPresentingProjectSettings = false
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
     @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
@@ -648,6 +650,38 @@ struct ProjectGridView: View {
         coordinator.enqueue(created, for: store)
     }
 
+    // MARK: Row reordering
+
+    /// Reorder by dropping one prompt row onto another (drag-and-drop).
+    private func movePrompt(withID draggedID: UUID, onto targetID: UUID) -> Bool {
+        guard draggedID != targetID,
+              let from = prompts.firstIndex(where: { $0.id == draggedID }),
+              let to = prompts.firstIndex(where: { $0.id == targetID }) else { return false }
+        // `move(fromOffsets:toOffset:)` inserts *before* toOffset in original indexing.
+        store.movePrompts(fromOffsets: IndexSet(integer: from), toOffset: from < to ? to + 1 : to)
+        store.saveOrReport()
+        dropTargetPromptID = nil
+        return true
+    }
+
+    /// Nudge a prompt row up (-1) or down (+1) — the keyboard/menu path.
+    private func movePrompt(_ prompt: Prompt, by delta: Int) {
+        guard let from = prompts.firstIndex(where: { $0.id == prompt.id }) else { return }
+        let target = from + delta
+        guard prompts.indices.contains(target) else { return }
+        store.movePrompts(fromOffsets: IndexSet(integer: from), toOffset: delta > 0 ? target + 1 : target)
+        store.saveOrReport()
+    }
+
+    private func dragPreview(_ prompt: Prompt) -> some View {
+        Label(prompt.text.isEmpty ? "Row \(prompt.order + 1)" : prompt.text,
+              systemImage: "line.3.horizontal")
+            .lineLimit(1)
+            .padding(8)
+            .frame(maxWidth: promptColumnWidth, alignment: .leading)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private func promptCell(_ prompt: Prompt) -> some View {
         Button {
             editingPrompt = EditingPrompt(id: prompt.id)
@@ -679,14 +713,33 @@ struct ProjectGridView: View {
             .frame(width: promptColumnWidth, height: cellSize, alignment: .topLeading)
             .padding(8)
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+            .overlay {
+                if dropTargetPromptID == prompt.id {
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .draggable(prompt.id.uuidString) { dragPreview(prompt) }
+        .dropDestination(for: String.self) { items, _ in
+            guard let idString = items.first, let draggedID = UUID(uuidString: idString) else { return false }
+            return movePrompt(withID: draggedID, onto: prompt.id)
+        } isTargeted: { targeted in
+            if targeted { dropTargetPromptID = prompt.id }
+            else if dropTargetPromptID == prompt.id { dropTargetPromptID = nil }
+        }
         .contextMenu {
             Button("Edit Prompt", systemImage: "pencil") {
                 editingPrompt = EditingPrompt(id: prompt.id)
             }
             Button("Select Row", systemImage: "checklist") { selectRow(prompt.id) }
+            Divider()
+            Button("Move Up", systemImage: "arrow.up") { movePrompt(prompt, by: -1) }
+                .disabled(prompt.order == 0)
+            Button("Move Down", systemImage: "arrow.down") { movePrompt(prompt, by: 1) }
+                .disabled(prompt.order == prompts.count - 1)
             Divider()
             if store.filledCellCount(inRow: prompt.id) > 0 {
                 Button("Delete Row Images…", systemImage: "trash", role: .destructive) {

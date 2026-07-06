@@ -27,6 +27,11 @@ struct PromptDetailEditor: View {
     // Local editing state — committed on Done, discarded on Cancel.
     @State private var text = ""
     @State private var negativePrompt = ""
+    @State private var promptField: PromptField = .positive
+    private enum PromptField: String, CaseIterable {
+        case positive = "Prompt"
+        case negative = "Negative Prompt"
+    }
     @State private var settings = DrawThingsConfigurationDTO()
     @State private var referenceImageData: Data?
     @State private var referenceChanged = false
@@ -82,18 +87,23 @@ struct PromptDetailEditor: View {
 
     private var leftPane: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Prompt").font(.headline)
-            SpellcheckedTextView(text: $text)
-                .frame(minHeight: 120)
+            // Positive/negative share one tab so the edit field can be as tall as
+            // the configuration editor on the right.
+            Picker("Prompt Field", selection: $promptField) {
+                ForEach(PromptField.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
-            Text("Additional Settings").font(.headline).padding(.top, 4)
-
-            Text("Negative Prompt").font(.subheadline)
-            SpellcheckedTextView(text: $negativePrompt)
-                .frame(minHeight: 70)
+            Group {
+                switch promptField {
+                case .positive: SpellcheckedTextView(text: $text)
+                case .negative: SpellcheckedTextView(text: $negativePrompt)
+                }
+            }
+            .frame(minHeight: 200, maxHeight: .infinity)
 
             referenceImagePicker
-            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

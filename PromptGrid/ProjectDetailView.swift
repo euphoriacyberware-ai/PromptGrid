@@ -12,6 +12,7 @@ import PromptGridCore
 struct ProjectDetailView: View {
     let item: ProjectListItem
     let library: ProjectLibrary
+    let onRenameProject: (URL, String) -> Void
 
     @EnvironmentObject private var coordinator: GenerationCoordinator
     @State private var store: ProjectStore?
@@ -54,7 +55,8 @@ struct ProjectDetailView: View {
         ProjectGridView(
             store: store,
             selectedCell: $selectedCell,
-            onOpenLightbox: { lightboxCell = $0 }
+            onOpenLightbox: { lightboxCell = $0 },
+            onRenameProject: onRenameProject
         )
         .inspector(isPresented: Binding(
             get: { selectedCell != nil },

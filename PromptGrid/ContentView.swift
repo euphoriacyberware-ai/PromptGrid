@@ -84,7 +84,7 @@ struct ContentView: View {
 #endif
         } detail: {
             if let selection, let item = library.items.first(where: { $0.id == selection }) {
-                ProjectDetailView(item: item, library: library)
+                ProjectDetailView(item: item, library: library, onRenameProject: renameProject)
             } else {
                 ContentUnavailableView(
                     "Select a Project",
@@ -99,7 +99,8 @@ struct ContentView: View {
             SettingsView(library: library)
         }
         .sheet(item: $projectSettings) { presentation in
-            ProjectSettingsView(store: presentation.store)
+            ProjectSettingsView(store: presentation.store,
+                                onRename: { renameProject(at: presentation.store.url, to: $0) })
         }
         .alert("New Project", isPresented: $isPresentingNewProject) {
             TextField("Name", text: $newProjectName)
@@ -144,6 +145,17 @@ struct ContentView: View {
         do {
             let store = try ProjectStore(contentsOf: item.url)
             projectSettings = ProjectSettingsPresentation(id: item.url, store: store)
+        } catch {
+            library.lastError = error.localizedDescription
+        }
+    }
+
+    private func renameProject(at url: URL, to newName: String) {
+        do {
+            let item = try library.renameProject(at: url, to: newName)
+            // The file (and thus the selection identity) moved — reselect it so the
+            // detail pane reopens the renamed project instead of clearing.
+            if selection == url { selection = item.id }
         } catch {
             library.lastError = error.localizedDescription
         }

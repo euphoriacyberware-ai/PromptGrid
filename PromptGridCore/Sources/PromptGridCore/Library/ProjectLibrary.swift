@@ -124,6 +124,36 @@ public final class ProjectLibrary {
         )
     }
 
+    /// Rename a project: move its `.pgproj` to a new basename (the display name is
+    /// the filename) and patch the manifest's stored name to match. Only
+    /// `Manifest.json` is rewritten — image files are left untouched. Returns the
+    /// renamed sidebar entry (with its new URL). A no-op basename change just
+    /// re-syncs the manifest name.
+    @discardableResult
+    public func renameProject(at oldURL: URL, to rawName: String) throws -> ProjectListItem {
+        let newName = Self.sanitizedName(rawName)
+        let currentBase = oldURL.deletingPathExtension().lastPathComponent
+        let destURL = (newName == currentBase) ? oldURL : uniquePackageURL(forName: newName)
+        if destURL != oldURL {
+            try FileCoordination.move(from: oldURL, to: destURL)
+        }
+
+        let finalBase = destURL.deletingPathExtension().lastPathComponent
+        var project = try FileCoordination.read(at: destURL) { url in
+            try ProjectPackage(readingFrom: FileWrapper(url: url, options: .immediate)).project
+        }
+        if project.name != finalBase {
+            project.name = finalBase
+            let data = try ProjectPackage.makeEncoder().encode(project)
+            let manifestURL = destURL.appendingPathComponent(ProjectPackage.manifestFilename)
+            try FileCoordination.writeData(data, to: manifestURL)
+        }
+
+        refresh()
+        let mod = (try? destURL.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        return ProjectListItem(url: destURL, displayName: finalBase, modifiedAt: mod)
+    }
+
     public func deleteProject(_ item: ProjectListItem) throws {
         try FileCoordination.delete(at: item.url)
         refresh()

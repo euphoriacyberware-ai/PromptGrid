@@ -15,6 +15,7 @@ struct ProjectGridView: View {
     @Bindable var store: ProjectStore
     @Binding var selectedCell: CellRef?
     let onOpenLightbox: (CellRef) -> Void
+    let onRenameProject: (URL, String) -> Void
     @EnvironmentObject private var coordinator: GenerationCoordinator
 
     @State private var promptPendingDeletion: Prompt?
@@ -123,7 +124,8 @@ struct ProjectGridView: View {
                 ExportView(store: store)
             }
             .sheet(isPresented: $isPresentingProjectSettings) {
-                ProjectSettingsView(store: store)
+                ProjectSettingsView(store: store,
+                                    onRename: { onRenameProject(store.url, $0) })
             }
     }
 

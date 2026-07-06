@@ -64,6 +64,57 @@ struct ProjectLibraryTests {
         #expect(library.items.isEmpty)
     }
 
+    @Test("Renaming moves the package and updates the manifest name")
+    func renameProject() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let item = try library.createProject(named: "Draft")
+        let renamed = try library.renameProject(at: item.url, to: "Final Cut")
+
+        #expect(renamed.displayName == "Final Cut")
+        #expect(renamed.url.deletingPathExtension().lastPathComponent == "Final Cut")
+        #expect(!FileManager.default.fileExists(atPath: item.url.path))   // old file gone
+        #expect(FileManager.default.fileExists(atPath: renamed.url.path))
+        #expect(library.items.map(\.displayName) == ["Final Cut"])
+        #expect(try library.loadProject(renamed).name == "Final Cut")     // manifest patched
+    }
+
+    @Test("Renaming preserves generated image files")
+    func renamePreservesImages() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Build a project with one completed cell so an image file exists on disk.
+        var project = Project(name: "WithImage")
+        project.prompts.append(Prompt(text: "p", order: 0))
+        let store = ProjectStore(url: root.appendingPathComponent("WithImage.pgproj"),
+                                 package: ProjectPackage(project: project))
+        let (run, jobs) = store.addRun(seed: 1, seedWasRandom: false)
+        _ = run
+        store.applyResult(jobID: jobs[0].id, imageData: Data([0xAB]), thumbnailData: Data([0xCD]))
+        try store.save()
+        library.refresh()
+
+        let renamed = try library.renameProject(at: store.url, to: "Renamed")
+        let reopened = try ProjectStore(contentsOf: renamed.url)
+        let job = reopened.project.prompts[0].jobs.values.first
+        #expect(job != nil)
+        #expect(reopened.imageData(for: job!) == Data([0xAB]))
+    }
+
+    @Test("Renaming to a colliding name is disambiguated")
+    func renameCollision() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try library.createProject(named: "Taken")
+        let other = try library.createProject(named: "Other")
+        let renamed = try library.renameProject(at: other.url, to: "Taken")
+        #expect(renamed.displayName == "Taken 2")
+        #expect(Set(library.items.map(\.displayName)) == ["Taken", "Taken 2"])
+    }
+
     @Test("Refresh reflects packages created out of band")
     func refreshPicksUpExternalPackages() throws {
         let (library, root) = try makeLibrary()

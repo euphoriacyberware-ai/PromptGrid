@@ -356,12 +356,53 @@ struct ProjectGridView: View {
         }
     }
 
-    /// Per-cell context menu. The rank options are the grid's rank surface (§10)
-    /// and route through the same `store.setRank` coordinating method as the
-    /// inspector and lightbox.
+    /// Per-cell context menu. When the right-clicked cell is part of an active
+    /// multi-selection, the menu acts on the whole selection (matching the
+    /// floating bar); otherwise it's the single-cell menu.
     @ViewBuilder
     private func cellMenu(prompt: Prompt, run: Run, job: GenerationJob?) -> some View {
         let ref = CellRef(promptID: prompt.id, runID: run.id)
+        if selection.count > 1 && selection.contains(ref) {
+            selectionMenu()
+        } else {
+            singleCellMenu(prompt: prompt, run: run, job: job, ref: ref)
+        }
+    }
+
+    /// Actions applied to every cell in the current multi-selection — the
+    /// context-menu twin of the floating selection bar.
+    @ViewBuilder
+    private func selectionMenu() -> some View {
+        Section("\(selection.count) Selected") {
+            Button("Generate Empty (\(selectedEmptyRefs.count))", systemImage: "wand.and.stars") {
+                generateSelection()
+            }
+            .disabled(selectedEmptyRefs.isEmpty || !coordinator.isConfigured)
+            Button("Regenerate \(selection.count)", systemImage: "arrow.clockwise") {
+                isConfirmingRegenerate = true
+            }
+            .disabled(!coordinator.isConfigured)
+            if !selectedCompletedJobs.isEmpty {
+                Menu {
+                    Button("Candidate") { rankSelection(.candidate) }
+                    Button("Shortlisted") { rankSelection(.shortlisted) }
+                    Button("Final") { rankSelection(.final) }
+                } label: {
+                    Label("Rank", systemImage: "star")
+                }
+            }
+        }
+        if !selectedFilledRefs.isEmpty {
+            Button("Delete \(selectedFilledRefs.count) Image\(selectedFilledRefs.count == 1 ? "" : "s")…",
+                   systemImage: "trash", role: .destructive) {
+                isConfirmingDeleteSelection = true
+            }
+        }
+        Button("Clear Selection", systemImage: "xmark") { clearSelection() }
+    }
+
+    @ViewBuilder
+    private func singleCellMenu(prompt: Prompt, run: Run, job: GenerationJob?, ref: CellRef) -> some View {
         switch job?.status {
         case .completed:
             if let job {

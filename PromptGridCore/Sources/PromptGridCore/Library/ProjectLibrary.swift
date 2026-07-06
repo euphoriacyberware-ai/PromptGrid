@@ -138,15 +138,22 @@ public final class ProjectLibrary {
             try FileCoordination.move(from: oldURL, to: destURL)
         }
 
+        // Sync the manifest name to the new basename. This is a cosmetic follow-up
+        // to the move: if it fails, the file has still been renamed, so surface the
+        // error but don't throw — the caller must be able to follow the moved file.
         let finalBase = destURL.deletingPathExtension().lastPathComponent
-        var project = try FileCoordination.read(at: destURL) { url in
-            try ProjectPackage(readingFrom: FileWrapper(url: url, options: .immediate)).project
-        }
-        if project.name != finalBase {
-            project.name = finalBase
-            let data = try ProjectPackage.makeEncoder().encode(project)
-            let manifestURL = destURL.appendingPathComponent(ProjectPackage.manifestFilename)
-            try FileCoordination.writeData(data, to: manifestURL)
+        do {
+            var project = try FileCoordination.read(at: destURL) { url in
+                try ProjectPackage(readingFrom: FileWrapper(url: url, options: .immediate)).project
+            }
+            if project.name != finalBase {
+                project.name = finalBase
+                let data = try ProjectPackage.makeEncoder().encode(project)
+                let manifestURL = destURL.appendingPathComponent(ProjectPackage.manifestFilename)
+                try FileCoordination.writeData(data, to: manifestURL)
+            }
+        } catch {
+            lastError = error.localizedDescription
         }
 
         refresh()

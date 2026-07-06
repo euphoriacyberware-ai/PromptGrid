@@ -151,11 +151,18 @@ struct ContentView: View {
     }
 
     private func renameProject(at url: URL, to newName: String) {
+        // The rename moves the .pgproj, so its URL — the selection identity —
+        // changes. Note whether it was selected *before* the move.
+        let wasSelected = selection == url
         do {
-            let item = try library.renameProject(at: url, to: newName)
-            // The file (and thus the selection identity) moved — reselect it so the
-            // detail pane reopens the renamed project instead of clearing.
-            if selection == url { selection = item.id }
+            let renamed = try library.renameProject(at: url, to: newName)
+            // Reselect the moved project using the entry as it appears in the
+            // refreshed list, so the id is one the sidebar List actually contains
+            // (else NavigationSplitView clears the selection to nil).
+            if wasSelected {
+                let item = library.items.first { $0.url == renamed.url } ?? renamed
+                selection = item.id
+            }
         } catch {
             library.lastError = error.localizedDescription
         }

@@ -127,6 +127,31 @@ struct ProjectLibraryTests {
         #expect(Set(library.items.map(\.displayName)) == ["Taken", "Taken 2"])
     }
 
+    @Test("Importing creates a project; replace overwrites, otherwise disambiguates")
+    func importCreatesAndReplaces() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let prompts = [Prompt(text: "a", order: 0), Prompt(text: "b", order: 1)]
+
+        let first = try library.importProject(named: "Imported", prompts: prompts, replaceExisting: false)
+        #expect(first.displayName == "Imported")
+        #expect(try library.loadProject(first).prompts.count == 2)
+        #expect(library.projectExists(named: "Imported"))
+        #expect(!library.projectExists(named: "Nope"))
+
+        // Non-replace collision → disambiguated to "Imported 2".
+        let second = try library.importProject(named: "Imported", prompts: prompts, replaceExisting: false)
+        #expect(second.displayName == "Imported 2")
+
+        // Replace → reuses the exact name, overwriting the original's contents.
+        let replaced = try library.importProject(named: "Imported",
+                                                 prompts: [Prompt(text: "c", order: 0)],
+                                                 replaceExisting: true)
+        #expect(replaced.displayName == "Imported")
+        #expect(try library.loadProject(replaced).prompts.count == 1)
+        #expect(Set(library.items.map(\.displayName)) == ["Imported", "Imported 2"])
+    }
+
     @Test("Refresh reflects packages created out of band")
     func refreshPicksUpExternalPackages() throws {
         let (library, root) = try makeLibrary()

@@ -161,6 +161,50 @@ public final class ProjectLibrary {
         return ProjectListItem(url: destURL, displayName: finalBase, modifiedAt: mod)
     }
 
+    /// Whether a project package already exists for `rawName` (after sanitizing).
+    /// Used to decide whether an import must prompt for rename/replace.
+    public func projectExists(named rawName: String) -> Bool {
+        FileManager.default.fileExists(atPath: packageURL(forName: Self.sanitizedName(rawName)).path)
+    }
+
+    /// Create a project seeded with imported prompt rows. When `replaceExisting`
+    /// is true, an existing package with the same name is deleted first (so the
+    /// name is reused exactly); otherwise the name is disambiguated as usual.
+    @discardableResult
+    public func importProject(named rawName: String,
+                              prompts: [Prompt],
+                              defaultSettings: DrawThingsConfigurationDTO = DrawThingsConfigurationDTO(),
+                              replaceExisting: Bool) throws -> ProjectListItem {
+        let name = Self.sanitizedName(rawName)
+        let url: URL
+        if replaceExisting {
+            let target = packageURL(forName: name)
+            if FileManager.default.fileExists(atPath: target.path) {
+                try FileCoordination.delete(at: target)
+            }
+            url = target
+        } else {
+            url = uniquePackageURL(forName: name)
+        }
+
+        let renumbered = prompts.enumerated().map { index, prompt -> Prompt in
+            var copy = prompt
+            copy.order = index
+            return copy
+        }
+        let project = Project(name: url.deletingPathExtension().lastPathComponent,
+                              defaultSettings: defaultSettings,
+                              prompts: renumbered)
+        let wrapper = try ProjectPackage(project: project).fileWrapper()
+        try FileCoordination.write(wrapper, to: url)
+        refresh()
+        return ProjectListItem(
+            url: url,
+            displayName: url.deletingPathExtension().lastPathComponent,
+            modifiedAt: Date()
+        )
+    }
+
     public func deleteProject(_ item: ProjectListItem) throws {
         try FileCoordination.delete(at: item.url)
         refresh()
@@ -185,16 +229,20 @@ public final class ProjectLibrary {
         return cleaned.isEmpty ? "Untitled" : cleaned
     }
 
+    /// The package URL for an exact name (no collision handling).
+    private func packageURL(forName name: String) -> URL {
+        libraryURL
+            .appendingPathComponent(name, isDirectory: false)
+            .appendingPathExtension(PromptGridCore.projectFileExtension)
+    }
+
     /// `Name.pgproj`, disambiguated as `Name 2.pgproj`, `Name 3.pgproj`, … on
     /// collision so an existing project is never overwritten.
     private func uniquePackageURL(forName name: String) -> URL {
-        let ext = PromptGridCore.projectFileExtension
-        var candidate = libraryURL.appendingPathComponent(name).appendingPathExtension(ext)
+        var candidate = packageURL(forName: name)
         var counter = 2
         while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = libraryURL
-                .appendingPathComponent("\(name) \(counter)")
-                .appendingPathExtension(ext)
+            candidate = packageURL(forName: "\(name) \(counter)")
             counter += 1
         }
         return candidate

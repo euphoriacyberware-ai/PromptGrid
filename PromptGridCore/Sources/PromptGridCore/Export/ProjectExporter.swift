@@ -121,13 +121,13 @@ public enum ProjectExporter {
         return try encoder.encode(document)
     }
 
-    struct PromptsDocument: Encodable {
+    struct PromptsDocument: Codable {
         let project: String
         let exportedAt: Date
         let filter: String
         let prompts: [Item]
 
-        struct Item: Encodable {
+        struct Item: Codable {
             let row: Int
             let prompt: String
             let negativePrompt: String

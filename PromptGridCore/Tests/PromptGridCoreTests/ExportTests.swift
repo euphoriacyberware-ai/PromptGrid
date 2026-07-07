@@ -126,6 +126,25 @@ struct ExportTests {
         #expect((object["prompts"] as! [Any]).count == 1)
     }
 
+    @Test("Import decodes an exported prompts JSON back into fresh prompt rows")
+    func importRoundTrip() throws {
+        let store = makeStore()
+        let data = try ProjectExporter.promptsJSON(project: store.project, filter: .all,
+                                                   exportedAt: Date(timeIntervalSince1970: 0))
+        let imported = try ProjectImporter.decode(from: data)
+        #expect(imported.name == "My Project")
+        #expect(imported.prompts.map(\.text) == ["Mountain lake at sunset!", "Neon city street"])
+        #expect(imported.prompts.map(\.order) == [0, 1])
+        #expect(imported.prompts.allSatisfy { $0.jobs.isEmpty })   // prompts only, no images
+    }
+
+    @Test("Import rejects a file that isn't a prompts export")
+    func importInvalid() {
+        #expect(throws: ProjectImporter.ImportError.self) {
+            _ = try ProjectImporter.decode(from: Data(#"{"foo":1}"#.utf8))
+        }
+    }
+
     @Test("Export writes a flat folder of PNGs with embedded XMP metadata")
     func exportWritesFilesWithMetadata() throws {
         let store = makeStore()

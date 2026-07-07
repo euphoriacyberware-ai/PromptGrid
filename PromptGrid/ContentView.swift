@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 import PromptGridCore
 
 /// The library shell (Specification §2.2, §6): a sidebar listing every project
@@ -21,10 +22,21 @@ struct ContentView: View {
     @State private var projectPendingDeletion: ProjectListItem?
     @State private var isPresentingSettings = false
     @State private var projectSettings: ProjectSettingsPresentation?
+    @State private var isImportingProject = false
+    @State private var pendingImport: PendingImport?
+    @State private var importNameField = ""
 
     private struct ProjectSettingsPresentation: Identifiable {
         let id: URL
         let store: ProjectStore
+    }
+
+    /// A decoded prompts import awaiting a name-collision decision.
+    private struct PendingImport: Identifiable {
+        let id = UUID()
+        let originalName: String
+        let prompts: [Prompt]
+        let defaultSettings: DrawThingsConfigurationDTO
     }
 
     var body: some View {
@@ -71,6 +83,14 @@ struct ContentView: View {
                 }
                 ToolbarItem {
                     Button {
+                        isImportingProject = true
+                    } label: {
+                        Label("Import", systemImage: "square.and.arrow.down")
+                    }
+                    .help("Import a prompts .json file as a new project")
+                }
+                ToolbarItem {
+                    Button {
                         isPresentingSettings = true
                     } label: {
                         Label("Settings", systemImage: "gearshape")
@@ -108,6 +128,28 @@ struct ContentView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Enter a name for the new project.")
+        }
+        .fileImporter(isPresented: $isImportingProject, allowedContentTypes: [.json]) { result in
+            if case let .success(url) = result { importFile(at: url) }
+        }
+        .alert(
+            "Project Already Exists",
+            isPresented: Binding(
+                get: { pendingImport != nil },
+                set: { if !$0 { pendingImport = nil } }
+            ),
+            presenting: pendingImport
+        ) { pending in
+            TextField("Name", text: $importNameField)
+            Button("Import") {
+                performImport(name: importNameField, from: pending, replace: false)
+            }
+            Button("Replace", role: .destructive) {
+                performImport(name: pending.originalName, from: pending, replace: true)
+            }
+            Button("Cancel", role: .cancel) { pendingImport = nil }
+        } message: { pending in
+            Text("A project named “\(pending.originalName)” already exists. Import under a different name, or replace the existing project (this permanently deletes it and its images).")
         }
         .alert(
             "Delete Project?",
@@ -163,6 +205,45 @@ struct ContentView: View {
                 let item = library.items.first { $0.url == renamed.url } ?? renamed
                 selection = item.id
             }
+        } catch {
+            library.lastError = error.localizedDescription
+        }
+    }
+
+    private func importFile(at url: URL) {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let imported = try ProjectImporter.decode(from: data)
+            if library.projectExists(named: imported.name) {
+                // Prompt to rename or replace; pre-fill the field with the name.
+                importNameField = imported.name
+                pendingImport = PendingImport(originalName: imported.name,
+                                              prompts: imported.prompts,
+                                              defaultSettings: imported.defaultSettings)
+            } else {
+                createImported(name: imported.name, prompts: imported.prompts,
+                               defaultSettings: imported.defaultSettings, replace: false)
+            }
+        } catch {
+            library.lastError = error.localizedDescription
+        }
+    }
+
+    private func performImport(name: String, from pending: PendingImport, replace: Bool) {
+        createImported(name: name, prompts: pending.prompts,
+                       defaultSettings: pending.defaultSettings, replace: replace)
+        pendingImport = nil
+    }
+
+    private func createImported(name: String, prompts: [Prompt],
+                                defaultSettings: DrawThingsConfigurationDTO, replace: Bool) {
+        do {
+            let item = try library.importProject(named: name, prompts: prompts,
+                                                 defaultSettings: defaultSettings,
+                                                 replaceExisting: replace)
+            selection = item.id
         } catch {
             library.lastError = error.localizedDescription
         }

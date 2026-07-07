@@ -8,7 +8,7 @@
 
 import Foundation
 
-public enum ExportFilter: String, CaseIterable, Sendable, Identifiable {
+public enum ExportFilter: String, CaseIterable, Codable, Sendable, Identifiable {
     case all
     case finalOnly
     case finalAndShortlisted

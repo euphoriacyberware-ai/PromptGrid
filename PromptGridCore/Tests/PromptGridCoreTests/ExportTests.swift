@@ -61,13 +61,15 @@ struct ExportTests {
         let store = makeStore()
         store.setRank(jobID: job(store, prompt: 0, run: 0).id, to: .final)
         var used = Set<String>()
+        let slug = ProjectExporter.slugify(store.project.name)
         let entries = ProjectExporter.entries(in: store.project, filter: .all)
-        let names = entries.map { ProjectExporter.uniqueFilename(for: $0, existing: &used) }
+        let names = entries.map { ProjectExporter.uniqueFilename(for: $0, projectSlug: slug, existing: &used) }
 
+        // Filenames carry the project name after the row number.
         // Prompt 0 run 1 -> final; prompt 0 run 2 -> candidate (no suffix).
-        #expect(names.contains("01_mountain-lake-at-sunset_run1_final.png"))
-        #expect(names.contains("01_mountain-lake-at-sunset_run2.png"))
-        #expect(names.contains("02_neon-city-street_run1.png"))
+        #expect(names.contains("01_my-project_mountain-lake-at-sunset_run1_final.png"))
+        #expect(names.contains("01_my-project_mountain-lake-at-sunset_run2.png"))
+        #expect(names.contains("02_my-project_neon-city-street_run1.png"))
         #expect(Set(names).count == names.count) // all unique
     }
 
@@ -86,10 +88,42 @@ struct ExportTests {
                                  resolvedPrompt: "same", resolvedNegativePrompt: "", imageFilename: "a.png")
         let run = store.project.runs[0]
         let e1 = ProjectExporter.Entry(prompt: store.project.prompts[0], run: run, job: job1)
-        let n1 = ProjectExporter.uniqueFilename(for: e1, existing: &used)
-        let n2 = ProjectExporter.uniqueFilename(for: e1, existing: &used)
-        #expect(n1 == "01_same_run1.png")
-        #expect(n2 == "01_same_run1-2.png")
+        let n1 = ProjectExporter.uniqueFilename(for: e1, projectSlug: "p", existing: &used)
+        let n2 = ProjectExporter.uniqueFilename(for: e1, projectSlug: "p", existing: &used)
+        #expect(n1 == "01_p_same_run1.png")
+        #expect(n2 == "01_p_same_run1-2.png")
+    }
+
+    @Test("Prompts JSON export: All includes ungenerated rows; rank filters gate on images")
+    func promptsExport() throws {
+        let store = makeStore()
+        // Add a third prompt with no images at all.
+        let empty = store.addPrompt()
+        store.updatePrompt(id: empty.id) { $0.text = "Ungenerated idea" }
+
+        // All → every prompt, even the one that never generated an image.
+        #expect(ProjectExporter.promptCount(in: store.project, filter: .all) == 3)
+        // Only prompt 0 gets a final image → rank filter keeps just it.
+        store.setRank(jobID: job(store, prompt: 0, run: 0).id, to: .final)
+        #expect(ProjectExporter.promptCount(in: store.project, filter: .finalOnly) == 1)
+
+        // "All" JSON carries the ungenerated row's template.
+        let allData = try ProjectExporter.promptsJSON(project: store.project, filter: .all,
+                                                      exportedAt: Date(timeIntervalSince1970: 0))
+        let allJSON = String(data: allData, encoding: .utf8)!
+        #expect(allJSON.contains("\"project\" : \"My Project\""))
+        #expect(allJSON.contains("Ungenerated idea"))
+
+        // "Final only" JSON drops the rows without a final image.
+        let finalData = try ProjectExporter.promptsJSON(project: store.project, filter: .finalOnly,
+                                                        exportedAt: Date(timeIntervalSince1970: 0))
+        let finalJSON = String(data: finalData, encoding: .utf8)!
+        #expect(finalJSON.contains("Mountain lake at sunset!"))   // prompt 0 template
+        #expect(!finalJSON.contains("Neon city street"))          // filtered out
+        #expect(!finalJSON.contains("Ungenerated idea"))          // no image → excluded
+
+        let object = try JSONSerialization.jsonObject(with: finalData) as! [String: Any]
+        #expect((object["prompts"] as! [Any]).count == 1)
     }
 
     @Test("Export writes a flat folder of PNGs with embedded XMP metadata")

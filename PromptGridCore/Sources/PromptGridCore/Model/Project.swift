@@ -23,6 +23,12 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
     public var prompts: [Prompt]
     /// Ordered — grid columns.
     public var runs: [Run]
+    /// The last export filters used for this project — tracked separately for the
+    /// image and prompt exporters, so e.g. "final images" and "all prompts" both
+    /// stick. Restored the next time the export sheet opens. Optional so older
+    /// manifests (without the keys) decode.
+    public var lastImageExportFilter: ExportFilter?
+    public var lastPromptExportFilter: ExportFilter?
 
     public init(
         id: UUID = UUID(),
@@ -31,7 +37,9 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
         modifiedAt: Date = Date(),
         defaultSettings: DrawThingsConfigurationDTO = DrawThingsConfigurationDTO(),
         prompts: [Prompt] = [],
-        runs: [Run] = []
+        runs: [Run] = [],
+        lastImageExportFilter: ExportFilter? = nil,
+        lastPromptExportFilter: ExportFilter? = nil
     ) {
         self.id = id
         self.name = name
@@ -40,6 +48,8 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
         self.defaultSettings = defaultSettings
         self.prompts = prompts
         self.runs = runs
+        self.lastImageExportFilter = lastImageExportFilter
+        self.lastPromptExportFilter = lastPromptExportFilter
     }
 }
 

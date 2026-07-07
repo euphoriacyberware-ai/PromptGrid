@@ -64,13 +64,76 @@ public enum ProjectExporter {
     ) -> [Unit] {
         var usedNames = Set<String>()
         var units: [Unit] = []
+        let projectSlug = slugify(project.name)
         for entry in entries(in: project, filter: filter) {
             guard let data = imageData(entry.job) else { continue }
-            let name = uniqueFilename(for: entry, existing: &usedNames)
+            let name = uniqueFilename(for: entry, projectSlug: projectSlug, existing: &usedNames)
             let payload = ExportMetadata.payload(for: entry, project: project, creatorTool: creatorTool)
             units.append(Unit(filename: name, imageData: data, metadata: payload))
         }
         return units
+    }
+
+    // MARK: Prompts (JSON) export
+
+    /// Prompt rows to export, in row order. "All" includes every prompt — even
+    /// ones that have never generated an image (a prompt row is worth exporting
+    /// on its own). A rank filter, being about generated images, keeps only rows
+    /// with at least one completed image of that rank.
+    public static func promptEntries(in project: Project, filter: ExportFilter) -> [Prompt] {
+        let ordered = project.prompts.sorted { $0.order < $1.order }
+        switch filter {
+        case .all:
+            return ordered
+        case .finalOnly, .finalAndShortlisted:
+            return ordered.filter { prompt in
+                prompt.jobs.values.contains {
+                    $0.status == .completed && $0.imageFilename != nil && filter.includes($0.rank)
+                }
+            }
+        }
+    }
+
+    public static func promptCount(in project: Project, filter: ExportFilter) -> Int {
+        promptEntries(in: project, filter: filter).count
+    }
+
+    /// Pretty-printed JSON of the filtered prompt rows (templates, negative
+    /// prompts, and their configuration) — a reusable prompt list.
+    public static func promptsJSON(project: Project, filter: ExportFilter, exportedAt: Date) throws -> Data {
+        let document = PromptsDocument(
+            project: project.name,
+            exportedAt: exportedAt,
+            filter: filter.rawValue,
+            prompts: promptEntries(in: project, filter: filter).map { prompt in
+                PromptsDocument.Item(
+                    row: prompt.order + 1,
+                    prompt: prompt.text,
+                    negativePrompt: prompt.negativePrompt,
+                    referenceImage: prompt.referenceImageFilename,
+                    configuration: prompt.settings
+                )
+            }
+        )
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(document)
+    }
+
+    struct PromptsDocument: Encodable {
+        let project: String
+        let exportedAt: Date
+        let filter: String
+        let prompts: [Item]
+
+        struct Item: Encodable {
+            let row: Int
+            let prompt: String
+            let negativePrompt: String
+            let referenceImage: String?
+            let configuration: DrawThingsConfigurationDTO
+        }
     }
 
     // MARK: Write
@@ -94,9 +157,9 @@ public enum ProjectExporter {
 
     // MARK: Filenames
 
-    /// `{rowIndex}_{slug}_run{n}{_rank}.png` (Specification §11). Rank suffix
-    /// omitted for plain candidate; collisions get `-2`, `-3`, …
-    static func uniqueFilename(for entry: Entry, existing: inout Set<String>) -> String {
+    /// `{rowIndex}_{projectSlug}_{slug}_run{n}{_rank}.png` (Specification §11).
+    /// Rank suffix omitted for plain candidate; collisions get `-2`, `-3`, …
+    static func uniqueFilename(for entry: Entry, projectSlug: String, existing: inout Set<String>) -> String {
         let row = String(format: "%02d", entry.prompt.order + 1)
         let slug = slugify(entry.job.resolvedPrompt.isEmpty ? entry.prompt.text : entry.job.resolvedPrompt)
         let rankSuffix: String
@@ -105,7 +168,7 @@ public enum ProjectExporter {
         case .shortlisted: rankSuffix = "_shortlisted"
         case .candidate, .none: rankSuffix = ""
         }
-        let base = "\(row)_\(slug)_run\(entry.run.index)\(rankSuffix)"
+        let base = "\(row)_\(projectSlug)_\(slug)_run\(entry.run.index)\(rankSuffix)"
 
         var candidate = "\(base).png"
         var counter = 2
@@ -118,7 +181,7 @@ public enum ProjectExporter {
     }
 
     /// Lowercase, alphanumerics kept, everything else collapsed to single hyphens.
-    static func slugify(_ text: String, maxLength: Int = 40) -> String {
+    public static func slugify(_ text: String, maxLength: Int = 40) -> String {
         var result = ""
         var pendingHyphen = false
         for character in text.lowercased() {

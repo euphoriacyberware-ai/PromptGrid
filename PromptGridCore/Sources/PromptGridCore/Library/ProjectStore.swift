@@ -106,6 +106,16 @@ public final class ProjectStore {
         project.defaultSettings = settings
     }
 
+    /// Remember the export filters last used (per exporter), so the export sheet
+    /// restores each independently.
+    public func setLastImageExportFilter(_ filter: ExportFilter) {
+        project.lastImageExportFilter = filter
+    }
+
+    public func setLastPromptExportFilter(_ filter: ExportFilter) {
+        project.lastPromptExportFilter = filter
+    }
+
     /// Apply an edit to a prompt's non-frozen fields (text, negative prompt,
     /// settings). Existing jobs are historical records and are never touched (§4).
     public func updatePrompt(id: UUID, _ transform: (inout Prompt) -> Void) {

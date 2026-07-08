@@ -108,8 +108,10 @@ public enum ProjectExporter {
             prompts: promptEntries(in: project, filter: filter).map { prompt in
                 PromptsDocument.Item(
                     row: prompt.order + 1,
+                    title: prompt.title,
                     prompt: prompt.text,
                     negativePrompt: prompt.negativePrompt,
+                    notes: prompt.notes,
                     referenceImage: prompt.referenceImageFilename,
                     configuration: prompt.settings
                 )
@@ -129,8 +131,10 @@ public enum ProjectExporter {
 
         struct Item: Codable {
             let row: Int
+            let title: String?
             let prompt: String
             let negativePrompt: String
+            let notes: String?
             let referenceImage: String?
             let configuration: DrawThingsConfigurationDTO
         }
@@ -161,7 +165,12 @@ public enum ProjectExporter {
     /// Rank suffix omitted for plain candidate; collisions get `-2`, `-3`, …
     static func uniqueFilename(for entry: Entry, projectSlug: String, existing: inout Set<String>) -> String {
         let row = String(format: "%02d", entry.prompt.order + 1)
-        let slug = slugify(entry.job.resolvedPrompt.isEmpty ? entry.prompt.text : entry.job.resolvedPrompt)
+        // Prefer the prompt's title; fall back to the (resolved) prompt text.
+        let title = entry.prompt.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let source = (title?.isEmpty == false)
+            ? title!
+            : (entry.job.resolvedPrompt.isEmpty ? entry.prompt.text : entry.job.resolvedPrompt)
+        let slug = slugify(source)
         let rankSuffix: String
         switch entry.job.rank {
         case .final: rankSuffix = "_final"

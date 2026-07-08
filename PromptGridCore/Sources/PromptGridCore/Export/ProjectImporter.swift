@@ -44,8 +44,10 @@ public enum ProjectImporter {
             .enumerated()
             .map { index, item in
                 Prompt(
+                    title: item.title,
                     text: item.prompt,
                     negativePrompt: item.negativePrompt,
+                    notes: item.notes,
                     settings: item.configuration,
                     order: index
                 )

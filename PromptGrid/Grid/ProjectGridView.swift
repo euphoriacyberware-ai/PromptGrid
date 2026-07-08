@@ -350,7 +350,7 @@ struct ProjectGridView: View {
                 ))
                 .contextMenu { cellMenu(prompt: prompt, run: run, job: job) }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Row \(prompt.order + 1), Run \(run.index), \(cellStatusDescription(job))\(isMultiSelected ? ", selected" : "")")
+                .accessibilityLabel("Row \(prompt.order + 1)\(promptTitle(prompt).map { " \($0)" } ?? ""), Run \(run.index), \(cellStatusDescription(job))\(isMultiSelected ? ", selected" : "")")
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { onOpenLightbox(ref) }
                 .accessibilityAction(named: isMultiSelected ? "Deselect" : "Add to selection") { toggleSelection(ref) }
@@ -673,8 +673,15 @@ struct ProjectGridView: View {
         store.saveOrReport()
     }
 
+    /// The prompt's title, trimmed, or nil when unset/blank.
+    private func promptTitle(_ prompt: Prompt) -> String? {
+        guard let title = prompt.title?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !title.isEmpty else { return nil }
+        return title
+    }
+
     private func dragPreview(_ prompt: Prompt) -> some View {
-        Label(prompt.text.isEmpty ? "Row \(prompt.order + 1)" : prompt.text,
+        Label(promptTitle(prompt) ?? (prompt.text.isEmpty ? "Row \(prompt.order + 1)" : prompt.text),
               systemImage: "line.3.horizontal")
             .lineLimit(1)
             .padding(8)
@@ -687,16 +694,24 @@ struct ProjectGridView: View {
             editingPrompt = EditingPrompt(id: prompt.id)
         } label: {
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(spacing: 4) {
                     Text("Row \(prompt.order + 1)")
-                        .font(.caption2)
                         .foregroundStyle(.tertiary)
-                    Spacer()
-                    if prompt.referenceImageFilename != nil {
-                        Image(systemName: "photo").font(.caption2).foregroundStyle(.tertiary)
+                    if let title = promptTitle(prompt) {
+                        Text(title)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
-                    Image(systemName: "pencil").font(.caption2).foregroundStyle(.tertiary)
+                    Spacer()
+                    if prompt.notes?.isEmpty == false {
+                        Image(systemName: "note.text").foregroundStyle(.tertiary)
+                    }
+                    if prompt.referenceImageFilename != nil {
+                        Image(systemName: "photo").foregroundStyle(.tertiary)
+                    }
+                    Image(systemName: "pencil").foregroundStyle(.tertiary)
                 }
+                .font(.caption2)
                 if prompt.text.isEmpty {
                     Text("Empty prompt — tap to edit")
                         .italic()

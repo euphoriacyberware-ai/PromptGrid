@@ -25,12 +25,15 @@ struct PromptDetailEditor: View {
 #endif
 
     // Local editing state — committed on Done, discarded on Cancel.
+    @State private var title = ""
     @State private var text = ""
     @State private var negativePrompt = ""
+    @State private var notes = ""
     @State private var promptField: PromptField = .positive
     private enum PromptField: String, CaseIterable {
         case positive = "Prompt"
         case negative = "Negative Prompt"
+        case notes = "Notes"
     }
     @State private var settings = DrawThingsConfigurationDTO()
     @State private var referenceImageData: Data?
@@ -87,8 +90,11 @@ struct PromptDetailEditor: View {
 
     private var leftPane: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Positive/negative share one tab so the edit field can be as tall as
-            // the configuration editor on the right.
+            TextField("Title (optional)", text: $title)
+                .textFieldStyle(.roundedBorder)
+
+            // Prompt/negative/notes share one tab so the edit field can be as tall
+            // as the configuration editor on the right.
             Picker("Prompt Field", selection: $promptField) {
                 ForEach(PromptField.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
@@ -99,6 +105,7 @@ struct PromptDetailEditor: View {
                 switch promptField {
                 case .positive: SpellcheckedTextView(text: $text)
                 case .negative: SpellcheckedTextView(text: $negativePrompt)
+                case .notes: SpellcheckedTextView(text: $notes)
                 }
             }
             .frame(minHeight: 200, maxHeight: .infinity)
@@ -143,16 +150,21 @@ struct PromptDetailEditor: View {
     private func loadIfNeeded() {
         guard !loaded, let prompt else { return }
         loaded = true
+        title = prompt.title ?? ""
         text = prompt.text
         negativePrompt = prompt.negativePrompt
+        notes = prompt.notes ?? ""
         settings = prompt.settings
         referenceImageData = store.referenceImageData(for: prompt)
     }
 
     private func commit() {
         store.updatePrompt(id: promptID) { prompt in
+            // Store nil (not "") when blank so "no title/notes" is unambiguous.
+            prompt.title = title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : title
             prompt.text = text
             prompt.negativePrompt = negativePrompt
+            prompt.notes = notes.isEmpty ? nil : notes
             prompt.settings = settings
         }
         if referenceChanged {

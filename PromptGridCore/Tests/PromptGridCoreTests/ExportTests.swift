@@ -73,6 +73,19 @@ struct ExportTests {
         #expect(Set(names).count == names.count) // all unique
     }
 
+    @Test("A prompt title replaces the prompt-text slug in filenames")
+    func filenamesUseTitle() {
+        let store = makeStore()
+        store.updatePrompt(id: store.project.prompts[0].id) { $0.title = "Hero Shot" }
+        var used = Set<String>()
+        let slug = ProjectExporter.slugify(store.project.name)
+        let names = ProjectExporter.entries(in: store.project, filter: .all)
+            .map { ProjectExporter.uniqueFilename(for: $0, projectSlug: slug, existing: &used) }
+        // Row 1 uses the title; row 2 (no title) still uses the prompt text.
+        #expect(names.contains("01_my-project_hero-shot_run1.png"))
+        #expect(names.contains("02_my-project_neon-city-street_run1.png"))
+    }
+
     @Test("Duplicate base names get -2, -3 suffixes")
     func collisions() {
         var used = Set<String>()
@@ -129,13 +142,26 @@ struct ExportTests {
     @Test("Import decodes an exported prompts JSON back into fresh prompt rows")
     func importRoundTrip() throws {
         let store = makeStore()
+        store.updatePrompt(id: store.project.prompts[0].id) {
+            $0.title = "Hero Shot"
+            $0.notes = "Golden hour, wide angle"
+        }
         let data = try ProjectExporter.promptsJSON(project: store.project, filter: .all,
                                                    exportedAt: Date(timeIntervalSince1970: 0))
+        // Title + notes are present in the JSON output.
+        let json = String(data: data, encoding: .utf8)!
+        #expect(json.contains("\"title\" : \"Hero Shot\""))
+        #expect(json.contains("Golden hour, wide angle"))
+
         let imported = try ProjectImporter.decode(from: data)
         #expect(imported.name == "My Project")
         #expect(imported.prompts.map(\.text) == ["Mountain lake at sunset!", "Neon city street"])
         #expect(imported.prompts.map(\.order) == [0, 1])
         #expect(imported.prompts.allSatisfy { $0.jobs.isEmpty })   // prompts only, no images
+        // Title + notes round-trip back onto the prompt.
+        #expect(imported.prompts[0].title == "Hero Shot")
+        #expect(imported.prompts[0].notes == "Golden hour, wide angle")
+        #expect(imported.prompts[1].title == nil)                  // unset stays nil
     }
 
     @Test("Import rejects a file that isn't a prompts export")

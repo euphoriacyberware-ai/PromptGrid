@@ -55,9 +55,15 @@ public struct Project: Codable, Identifiable, Equatable, Sendable {
 
 public struct Prompt: Codable, Identifiable, Equatable, Sendable {
     public var id: UUID
+    /// Optional short label. When set, shown after the row number in the UI and
+    /// used (instead of the prompt text) in export filenames. Nil = no title.
+    public var title: String?
     /// Template; may contain `{a|b|c}` wildcard groups (Specification §5).
     public var text: String
     public var negativePrompt: String
+    /// Free-form scene notes for the user; never sent to the server or used in
+    /// generation. Nil = no notes.
+    public var notes: String?
     /// Copied from project defaults at creation, then independently editable.
     public var settings: DrawThingsConfigurationDTO
     /// Optional img2img/inpaint source stored under `References/`.
@@ -68,16 +74,20 @@ public struct Prompt: Codable, Identifiable, Equatable, Sendable {
 
     public init(
         id: UUID = UUID(),
+        title: String? = nil,
         text: String = "",
         negativePrompt: String = "",
+        notes: String? = nil,
         settings: DrawThingsConfigurationDTO = DrawThingsConfigurationDTO(),
         referenceImageFilename: String? = nil,
         order: Int,
         jobs: [UUID: GenerationJob] = [:]
     ) {
         self.id = id
+        self.title = title
         self.text = text
         self.negativePrompt = negativePrompt
+        self.notes = notes
         self.settings = settings
         self.referenceImageFilename = referenceImageFilename
         self.order = order

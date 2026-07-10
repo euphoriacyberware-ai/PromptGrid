@@ -91,9 +91,23 @@ struct CellInspector: View {
                     settingRow("Steps", "\(settings.steps)")
                     settingRow("Size", "\(settings.width)×\(settings.height)")
                     settingRow("Guidance", String(format: "%.1f", settings.guidanceScale))
+                    settingRow("Shift", trimFloat(settings.shift))
                     settingRow("Seed", seed.map(String.init) ?? "—")
+                    if let upscaler = settings.upscaler, !upscaler.isEmpty {
+                        settingRow("Upscaler", upscaler)
+                    }
+                    if let face = settings.faceRestoration, !face.isEmpty {
+                        settingRow("Face Restoration", face)
+                    }
                 }
                 .font(.caption)
+
+                if !settings.loras.isEmpty {
+                    listRows("LoRAs", settings.loras.map { "\($0.file) · \(trimFloat($0.weight))" })
+                }
+                if !settings.controls.isEmpty {
+                    listRows("ControlNets", settings.controls.map { "\($0.file) · \(trimFloat($0.weight))" })
+                }
             }
         }
     }
@@ -198,6 +212,24 @@ struct CellInspector: View {
             Text(label).foregroundStyle(.secondary)
             Text(value).textSelection(.enabled)
         }
+    }
+
+    /// A labeled list (LoRAs / ControlNets), one entry per line.
+    private func listRows(_ label: String, _ items: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            ForEach(items, id: \.self) { item in
+                Text(item)
+                    .font(.caption)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Drop trailing zeros: 3.0 → "3", 1.15 → "1.15".
+    private func trimFloat(_ value: Float) -> String {
+        value == value.rounded() ? String(Int(value)) : String(format: "%g", value)
     }
 
     private func samplerName(_ raw: Int8) -> String {

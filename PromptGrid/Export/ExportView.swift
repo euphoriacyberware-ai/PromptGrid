@@ -233,3 +233,20 @@ struct JSONDocument: FileDocument {
         FileWrapper(regularFileWithContents: data)
     }
 }
+
+/// A PNG file document wrapping ready-made image bytes, for `.fileExporter`.
+struct ImageFileDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.png] }
+
+    var data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}

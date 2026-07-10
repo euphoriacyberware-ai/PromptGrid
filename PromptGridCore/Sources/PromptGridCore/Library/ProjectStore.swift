@@ -136,6 +136,30 @@ public final class ProjectStore {
         }
     }
 
+    /// Copy a completed job's frozen configuration back onto its prompt row, so
+    /// the row regenerates with the settings that produced this image. Existing
+    /// jobs (and their snapshots) are untouched.
+    public func restoreSettings(fromJobID jobID: UUID) {
+        guard let index = promptIndex(containingJob: jobID),
+              let job = project.prompts[index].jobs.values.first(where: { $0.id == jobID })
+        else { return }
+        project.prompts[index].settings = job.settingsSnapshot
+    }
+
+    /// Copy a completed job's resolved prompt (and negative prompt) back onto its
+    /// prompt row's text — the row's template becomes the exact text used.
+    public func restorePrompt(fromJobID jobID: UUID) {
+        guard let index = promptIndex(containingJob: jobID),
+              let job = project.prompts[index].jobs.values.first(where: { $0.id == jobID })
+        else { return }
+        project.prompts[index].text = job.resolvedPrompt
+        project.prompts[index].negativePrompt = job.resolvedNegativePrompt
+    }
+
+    private func promptIndex(containingJob jobID: UUID) -> Int? {
+        project.prompts.firstIndex { $0.jobs.values.contains { $0.id == jobID } }
+    }
+
     /// Remember the export filters last used (per exporter), so the export sheet
     /// restores each independently.
     public func setLastImageExportFilter(_ filter: ExportFilter) {

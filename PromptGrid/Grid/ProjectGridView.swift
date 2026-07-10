@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 import PromptGridCore
 
 struct ProjectGridView: View {
@@ -36,6 +37,10 @@ struct ProjectGridView: View {
     @State private var isConfirmingDeleteSelection = false
     // Drag-to-reorder: the prompt row currently under a drag.
     @State private var dropTargetPromptID: UUID?
+    // Single-image export ("Export Image…" on a completed cell).
+    @State private var isExportingImage = false
+    @State private var imageDocument: ImageFileDocument?
+    @State private var imageExportFilename = "image"
     @State private var isPresentingProjectSettings = false
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
     @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
@@ -75,6 +80,12 @@ struct ProjectGridView: View {
             } message: {
                 Text("Deletes the images in the selected cells, reverting them to empty. This can’t be undone.")
             }
+            .fileExporter(
+                isPresented: $isExportingImage,
+                document: imageDocument,
+                contentType: .png,
+                defaultFilename: imageExportFilename
+            ) { _ in }
     }
 
     private var bodyWithDialogs: some View {
@@ -424,6 +435,9 @@ struct ProjectGridView: View {
                     rankButton(job, .shortlisted, "Shortlisted")
                     rankButton(job, .final, "Final")
                 }
+                Button("Export Image…", systemImage: "square.and.arrow.up") { exportImage(job) }
+                Button("Restore Configuration", systemImage: "arrow.uturn.backward") { restoreConfiguration(job) }
+                Button("Restore Prompt", systemImage: "arrow.uturn.backward") { restorePromptFromJob(job) }
             }
         case nil:
             Button("Generate", systemImage: "wand.and.stars") { generateCell(prompt: prompt, run: run) }
@@ -652,6 +666,26 @@ struct ProjectGridView: View {
         store.deleteCell(promptID: ref.promptID, runID: ref.runID)
         store.saveOrReport()
         // The cell stays selected — only its image was deleted, not the cell.
+    }
+
+    private func exportImage(_ job: GenerationJob) {
+        guard let raw = store.imageData(for: job),
+              let bundle = (try? ProjectExporter.singleImage(
+                    project: store.project, job: job, imageData: raw, creatorTool: "PromptGrid")) ?? nil
+        else { return }
+        imageDocument = ImageFileDocument(data: bundle.data)
+        imageExportFilename = (bundle.filename as NSString).deletingPathExtension
+        isExportingImage = true
+    }
+
+    private func restoreConfiguration(_ job: GenerationJob) {
+        store.restoreSettings(fromJobID: job.id)
+        store.saveOrReport()
+    }
+
+    private func restorePromptFromJob(_ job: GenerationJob) {
+        store.restorePrompt(fromJobID: job.id)
+        store.saveOrReport()
     }
 
     private func deleteRowImages(_ prompt: Prompt) {

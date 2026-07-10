@@ -129,6 +129,28 @@ struct CellInteractionTests {
         #expect(sequence(.byPrompt).map { "\($0.p)\($0.r)" } == ["00", "01", "10", "11"])
     }
 
+    @Test("Restore copies a job's snapshot config and resolved prompt onto its row")
+    func restoreFromJob() {
+        let store = storeWithGrid(prompts: 1)          // prompt text "p0 {a|a}"
+        let (run, jobs) = store.addRun(seed: 1, seedWasRandom: false)
+        let job = jobs[0]
+        let promptID = store.project.prompts[0].id
+
+        // Change the row's live settings/text so restore has something to overwrite.
+        store.updatePrompt(id: promptID) {
+            $0.text = "totally different"
+            $0.settings.steps = 3
+        }
+
+        store.restoreSettings(fromJobID: job.id)
+        #expect(store.project.prompts[0].settings.steps == job.settingsSnapshot.steps)
+
+        store.restorePrompt(fromJobID: job.id)
+        #expect(store.project.prompts[0].text == job.resolvedPrompt)          // wildcard resolved
+        #expect(store.project.prompts[0].negativePrompt == job.resolvedNegativePrompt)
+        _ = run
+    }
+
     @Test("Deleting a cell removes its job and image, reverting it to empty")
     func deleteCell() {
         let store = storeWithGrid(prompts: 1)

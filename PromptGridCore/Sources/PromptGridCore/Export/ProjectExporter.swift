@@ -74,6 +74,23 @@ public enum ProjectExporter {
         return units
     }
 
+    // MARK: Single image
+
+    /// Build the fully-prepared export bytes (image + embedded XMP metadata) and a
+    /// suggested filename for one completed job — the per-cell "Export Image…"
+    /// action. Nil if the job's prompt/run can't be found in the project.
+    public static func singleImage(project: Project, job: GenerationJob,
+                                   imageData: Data, creatorTool: String) throws -> (filename: String, data: Data)? {
+        guard let prompt = project.prompts.first(where: { $0.id == job.promptID }),
+              let run = project.runs.first(where: { $0.id == job.runID }) else { return nil }
+        let entry = Entry(prompt: prompt, run: run, job: job)
+        var used = Set<String>()
+        let filename = uniqueFilename(for: entry, projectSlug: slugify(project.name), existing: &used)
+        let payload = ExportMetadata.payload(for: entry, project: project, creatorTool: creatorTool)
+        let data = try PNGMetadataWriter.embedding(payload, into: imageData)
+        return (filename, data)
+    }
+
     // MARK: Prompts (JSON) export
 
     /// Prompt rows to export, in row order. "All" includes every prompt — even

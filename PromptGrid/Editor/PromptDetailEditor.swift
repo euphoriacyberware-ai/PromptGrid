@@ -36,6 +36,7 @@ struct PromptDetailEditor: View {
         case notes = "Notes"
     }
     @State private var settings = DrawThingsConfigurationDTO()
+    @State private var configRevision = 0
     @State private var referenceImageData: Data?
     @State private var referenceChanged = false
     @State private var isImporterPresented = false
@@ -138,8 +139,25 @@ struct PromptDetailEditor: View {
 
     private var rightPane: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Configuration (JSON)").font(.headline)
+            HStack {
+                Text("Configuration (JSON)").font(.headline)
+                Spacer()
+                Menu {
+                    Button("Copy from Project Default", systemImage: "arrow.down.doc") {
+                        copyFromProjectDefault()
+                    }
+                    Button("Copy to Project Default", systemImage: "arrow.up.doc") {
+                        copyToProjectDefault()
+                    }
+                } label: {
+                    Label("Project Default", systemImage: "square.on.square")
+                }
+                .fixedSize()
+            }
+            // `.id` forces a fresh editor (reloading its text) when the config is
+            // replaced wholesale from the project default.
             ConfigurationEditor(configuration: $settings)
+                .id(configRevision)
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,6 +174,20 @@ struct PromptDetailEditor: View {
         notes = prompt.notes ?? ""
         settings = prompt.settings
         referenceImageData = store.referenceImageData(for: prompt)
+    }
+
+    /// Replace the editor's configuration with the project default (applied to the
+    /// prompt when you press Done, like any other edit here).
+    private func copyFromProjectDefault() {
+        settings = store.project.defaultSettings
+        configRevision += 1   // force the JSON editor to reload with the new value
+    }
+
+    /// Replace the project default with this prompt's current configuration. A
+    /// project-level change, so it's committed immediately.
+    private func copyToProjectDefault() {
+        store.setDefaultSettings(settings)
+        store.saveOrReport()
     }
 
     private func commit() {

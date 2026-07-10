@@ -127,6 +127,15 @@ public final class ProjectStore {
         project.defaultSettings = settings
     }
 
+    /// Overwrite every prompt's editable settings with the project default. Only
+    /// the prompts' current settings change — existing jobs keep their frozen
+    /// `settingsSnapshot`, so past results are never altered.
+    public func applyDefaultSettingsToAllPrompts() {
+        for index in project.prompts.indices {
+            project.prompts[index].settings = project.defaultSettings
+        }
+    }
+
     /// Remember the export filters last used (per exporter), so the export sheet
     /// restores each independently.
     public func setLastImageExportFilter(_ filter: ExportFilter) {

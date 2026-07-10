@@ -84,6 +84,24 @@ struct ProjectStoreTests {
         #expect(store.project.prompts.last?.id == appended.id)
     }
 
+    @Test("Applying the project default overwrites prompt settings but not job snapshots")
+    func applyDefaultToAllPrompts() {
+        var dto = DrawThingsConfigurationDTO()
+        dto.steps = 42
+        var project = Project(name: "P", defaultSettings: dto)
+        project.prompts = [Prompt(text: "a", order: 0), Prompt(settings: { var d = DrawThingsConfigurationDTO(); d.steps = 7; return d }(), order: 1)]
+        let store = makeStore(project)
+        // A job on prompt 0 snapshots its (pre-apply) settings.
+        store.addRun(seed: 1, seedWasRandom: false)
+        let snapshotBefore = store.project.prompts[0].jobs.values.first?.settingsSnapshot.steps
+
+        store.applyDefaultSettingsToAllPrompts()
+        // Every prompt's editable settings now match the default.
+        #expect(store.project.prompts.allSatisfy { $0.settings.steps == 42 })
+        // The historical job snapshot is untouched.
+        #expect(store.project.prompts[0].jobs.values.first?.settingsSnapshot.steps == snapshotBefore)
+    }
+
     @Test("Removing a prompt deletes its cell images from the package")
     func removePromptDeletesImages() {
         let run = UUID()

@@ -20,6 +20,9 @@ struct ProjectSettingsView: View {
     @State private var originalName = ""
     @State private var config = DrawThingsConfigurationDTO()
     @State private var loaded = false
+    @State private var isConfirmingApplyToAll = false
+
+    private var promptCount: Int { store.project.prompts.count }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -34,7 +37,13 @@ struct ProjectSettingsView: View {
                     ConfigurationEditor(configuration: $config, minHeight: 280)
                 }
                 Section {
-                    Text("Copied into each new prompt in this project. Existing prompts keep their own settings.")
+                    Button {
+                        isConfirmingApplyToAll = true
+                    } label: {
+                        Label("Apply to All Prompts", systemImage: "square.stack.3d.down.forward")
+                    }
+                    .disabled(promptCount == 0)
+                    Text("Copied into each new prompt in this project. Existing prompts keep their own settings — use “Apply to All Prompts” to overwrite them with this default.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -51,6 +60,17 @@ struct ProjectSettingsView: View {
             }
         }
         .frame(minWidth: 520, minHeight: 480)
+        .confirmationDialog(
+            "Apply to \(promptCount) Prompt\(promptCount == 1 ? "" : "s")?",
+            isPresented: $isConfirmingApplyToAll
+        ) {
+            Button("Apply to \(promptCount) Prompt\(promptCount == 1 ? "" : "s")", role: .destructive) {
+                applyToAllPrompts()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This replaces every prompt's generation settings with this default. Already-generated images are unaffected. This can’t be undone.")
+        }
         .onAppear {
             if !loaded {
                 name = store.project.name
@@ -59,6 +79,13 @@ struct ProjectSettingsView: View {
                 loaded = true
             }
         }
+    }
+
+    /// Commit the edited default and push it onto every existing prompt.
+    private func applyToAllPrompts() {
+        store.setDefaultSettings(config)
+        store.applyDefaultSettingsToAllPrompts()
+        store.saveOrReport()
     }
 
     private func commit() {

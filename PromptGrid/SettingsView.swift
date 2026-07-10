@@ -15,6 +15,7 @@ import PromptGridCore
 enum GenerationPreferenceKey {
     static let autoGenerateNewRuns = "autoGenerateNewRuns"
     static let generateMissingOrder = "generateMissingOrder"
+    static let generateMissingSkipRowsWithFinal = "generateMissingSkipRowsWithFinal"
 }
 
 struct SettingsView: View {
@@ -24,6 +25,7 @@ struct SettingsView: View {
 
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
     @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
+    @AppStorage(GenerationPreferenceKey.generateMissingSkipRowsWithFinal) private var generateMissingSkipRowsWithFinal = true
 
     // Server (committed on Save).
     @State private var host = ""
@@ -135,6 +137,10 @@ struct SettingsView: View {
                 ForEach(GenerationOrder.allCases) { order in Text(order.title).tag(order) }
             }
             Text("By Seed fills each seed across all prompts first. By Prompt fills each prompt across all seeds first (fewer model swaps per prompt).")
+                .font(.footnote).foregroundStyle(.secondary)
+
+            Toggle("Skip rows that already have a final", isOn: $generateMissingSkipRowsWithFinal)
+            Text("When on, Generate Missing leaves rows whose final image you've already chosen untouched. When off, it fills every empty cell regardless.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
     }

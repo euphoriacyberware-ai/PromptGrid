@@ -39,8 +39,11 @@ struct ProjectGridView: View {
     @State private var isPresentingProjectSettings = false
     @AppStorage(GenerationPreferenceKey.autoGenerateNewRuns) private var autoGenerateNewRuns = false
     @AppStorage(GenerationPreferenceKey.generateMissingOrder) private var generateMissingOrder: GenerationOrder = .bySeed
+    @AppStorage(GenerationPreferenceKey.generateMissingSkipRowsWithFinal) private var generateMissingSkipRowsWithFinal = true
 
-    private var missingCount: Int { store.missingCellCount() }
+    private var missingCount: Int {
+        store.missingCellCount(skipRowsWithFinal: generateMissingSkipRowsWithFinal)
+    }
 
     private struct EditingPrompt: Identifiable { let id: UUID }
 
@@ -117,7 +120,9 @@ struct ProjectGridView: View {
                 Button("Generate \(missingCount)") { generateMissing() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("Queues a generation for every empty cell in the grid, re-rolling wildcards and using each prompt’s current settings. This can be a large batch.")
+                Text(generateMissingSkipRowsWithFinal
+                     ? "Queues a generation for every empty cell in rows that don’t already have a final, re-rolling wildcards and using each prompt’s current settings. This can be a large batch."
+                     : "Queues a generation for every empty cell in the grid, re-rolling wildcards and using each prompt’s current settings. This can be a large batch.")
             }
             .sheet(item: $editingPrompt) { editing in
                 PromptDetailEditor(store: store, promptID: editing.id)
@@ -664,7 +669,8 @@ struct ProjectGridView: View {
     }
 
     private func generateMissing() {
-        let created = store.generateMissing(order: generateMissingOrder)
+        let created = store.generateMissing(order: generateMissingOrder,
+                                            skipRowsWithFinal: generateMissingSkipRowsWithFinal)
         store.saveOrReport()
         coordinator.enqueue(created, for: store)
     }

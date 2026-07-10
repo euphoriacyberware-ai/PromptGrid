@@ -252,10 +252,18 @@ public final class ProjectStore {
         return job
     }
 
+    /// Whether a prompt row already has a job ranked `.final`.
+    private func promptHasFinal(_ prompt: Prompt) -> Bool {
+        prompt.jobs.values.contains { $0.rank == .final }
+    }
+
     /// Number of cells (prompt × run) with no job yet — the "missing" images.
-    public func missingCellCount() -> Int {
+    /// When `skipRowsWithFinal` is set, rows that already have a chosen final are
+    /// excluded (they're considered done).
+    public func missingCellCount(skipRowsWithFinal: Bool = false) -> Int {
         var count = 0
         for prompt in project.prompts {
+            if skipRowsWithFinal && promptHasFinal(prompt) { continue }
             for run in project.runs where prompt.jobs[run.id] == nil {
                 count += 1
             }
@@ -268,10 +276,18 @@ public final class ProjectStore {
     /// already have a job (completed/failed/etc.) are left untouched; delete one
     /// first to regenerate it. Wildcards re-roll and current settings/seed are
     /// snapshotted per cell, exactly like single-cell generate.
+    ///
+    /// When `skipRowsWithFinal` is set, rows whose final image has already been
+    /// chosen are skipped entirely — no point generating more options for them.
     @discardableResult
-    public func generateMissing(order: GenerationOrder = .bySeed) -> [GenerationJob] {
+    public func generateMissing(order: GenerationOrder = .bySeed,
+                                skipRowsWithFinal: Bool = false) -> [GenerationJob] {
+        let skippedPromptIDs: Set<UUID> = skipRowsWithFinal
+            ? Set(project.prompts.filter(promptHasFinal).map(\.id))
+            : []
         var created: [GenerationJob] = []
         func fill(_ promptID: UUID, _ runID: UUID) {
+            guard !skippedPromptIDs.contains(promptID) else { return }
             if let job = generateCell(promptID: promptID, runID: runID) { created.append(job) }
         }
         switch order {

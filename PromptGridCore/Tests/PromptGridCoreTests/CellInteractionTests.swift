@@ -85,6 +85,32 @@ struct CellInteractionTests {
         #expect(store.project.prompts.first { $0.id == late.id }?.jobs.count == 2)
     }
 
+    @Test("Generate Missing can skip rows that already have a final")
+    func generateMissingSkipsRowsWithFinal() {
+        let store = storeWithGrid(prompts: 2)
+        let (r1, _) = store.addRun(seed: 1, seedWasRandom: false)
+        store.addRun(seed: 2, seedWasRandom: false)
+        // Delete both of prompt 0's cells and one of prompt 1's -> 3 empty cells.
+        let p0 = store.project.prompts[0].id
+        let p1 = store.project.prompts[1].id
+        store.deleteCell(promptID: p0, runID: r1.id)                       // p0 now: 1 empty (r1), 1 job (r2)
+        store.deleteCell(promptID: p1, runID: r1.id)                       // p1 now: 1 empty (r1), 1 job (r2)
+        // Make prompt 0's remaining job the final for its row.
+        let p0Job = store.project.prompts.first { $0.id == p0 }!.jobs.values.first!
+        store.applyResult(jobID: p0Job.id, imageData: Data([1]), thumbnailData: Data([1]))
+        store.setRank(jobID: p0Job.id, to: .final)
+
+        // Without skipping: both empty cells (p0/r1, p1/r1) are counted/filled.
+        #expect(store.missingCellCount(skipRowsWithFinal: false) == 2)
+        // With skipping: prompt 0 has a final, so only prompt 1's empty cell remains.
+        #expect(store.missingCellCount(skipRowsWithFinal: true) == 1)
+
+        let created = store.generateMissing(skipRowsWithFinal: true)
+        #expect(created.count == 1)
+        #expect(created.allSatisfy { $0.promptID == p1 })                  // only prompt 1 filled
+        #expect(store.missingCellCount(skipRowsWithFinal: true) == 0)
+    }
+
     @Test("Generate Missing order: bySeed is column-major, byPrompt is row-major")
     func generateMissingOrder() {
         func sequence(_ order: GenerationOrder) -> [(p: Int, r: Int)] {

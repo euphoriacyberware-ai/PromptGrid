@@ -63,6 +63,27 @@ struct ProjectStoreTests {
         #expect(store.project.prompts.map(\.order) == [0, 1, 2])
     }
 
+    @Test("Inserting a prompt before/after a row places it and renumbers")
+    func insertPrompt() {
+        let store = makeStore()
+        let a = store.addPrompt()
+        let b = store.addPrompt()
+
+        // Insert before b -> [a, new, b].
+        let mid = store.insertPrompt(relativeTo: b.id, after: false)
+        #expect(store.project.prompts.map(\.id) == [a.id, mid.id, b.id])
+        #expect(store.project.prompts.map(\.order) == [0, 1, 2])
+
+        // Insert after a -> [a, new2, mid, b].
+        let after = store.insertPrompt(relativeTo: a.id, after: true)
+        #expect(store.project.prompts.map(\.id) == [a.id, after.id, mid.id, b.id])
+        #expect(store.project.prompts.map(\.order) == [0, 1, 2, 3])
+
+        // Unknown id falls back to appending.
+        let appended = store.insertPrompt(relativeTo: UUID(), after: false)
+        #expect(store.project.prompts.last?.id == appended.id)
+    }
+
     @Test("Removing a prompt deletes its cell images from the package")
     func removePromptDeletesImages() {
         let run = UUID()

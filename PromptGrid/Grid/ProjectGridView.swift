@@ -689,6 +689,14 @@ struct ProjectGridView: View {
         return true
     }
 
+    /// Insert a new prompt row before/after an existing one, then open it for
+    /// editing (matching the flow of tapping an empty new prompt).
+    private func insertPrompt(relativeTo prompt: Prompt, after: Bool) {
+        let created = store.insertPrompt(relativeTo: prompt.id, after: after)
+        store.saveOrReport()
+        editingPrompt = EditingPrompt(id: created.id)
+    }
+
     /// Nudge a prompt row up (-1) or down (+1) — the keyboard/menu path.
     private func movePrompt(_ prompt: Prompt, by delta: Int) {
         guard let from = prompts.firstIndex(where: { $0.id == prompt.id }) else { return }
@@ -776,6 +784,12 @@ struct ProjectGridView: View {
             }
             Button("Select Row", systemImage: "checklist") { selectRow(prompt.id) }
             Divider()
+            Button("Insert Prompt Above", systemImage: "arrow.up.to.line") {
+                insertPrompt(relativeTo: prompt, after: false)
+            }
+            Button("Insert Prompt Below", systemImage: "arrow.down.to.line") {
+                insertPrompt(relativeTo: prompt, after: true)
+            }
             Button("Move Up", systemImage: "arrow.up") { movePrompt(prompt, by: -1) }
                 .disabled(prompt.order == 0)
             Button("Move Down", systemImage: "arrow.down") { movePrompt(prompt, by: 1) }

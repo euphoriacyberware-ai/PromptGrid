@@ -72,6 +72,27 @@ public final class ProjectStore {
         return prompt
     }
 
+    /// Insert a new empty prompt (seeded with the project's default settings) at a
+    /// specific position — the row context-menu "Insert Above/Below". The index is
+    /// clamped into range and `order` is renumbered to stay contiguous.
+    @discardableResult
+    public func insertPrompt(at index: Int) -> Prompt {
+        let clamped = max(0, min(index, project.prompts.count))
+        let prompt = Prompt(settings: project.defaultSettings, order: clamped)
+        project.prompts.insert(prompt, at: clamped)
+        renumberPrompts()
+        return prompt
+    }
+
+    /// Insert a new prompt immediately before / after an existing row.
+    @discardableResult
+    public func insertPrompt(relativeTo promptID: UUID, after: Bool) -> Prompt {
+        guard let index = project.prompts.firstIndex(where: { $0.id == promptID }) else {
+            return addPrompt()
+        }
+        return insertPrompt(at: after ? index + 1 : index)
+    }
+
     /// Remove a prompt, delete any of its cell images from the package, and keep
     /// `order` contiguous.
     public func removePrompt(id: UUID) {

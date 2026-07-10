@@ -274,6 +274,12 @@ struct ProjectGridView: View {
                 // Size the content to at least the viewport so it pins top-left
                 // (rather than centering) while still growing/scrolling when larger.
                 .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .topLeading)
+                // A tap on empty space (behind the cells) clears the selection.
+                .background(
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { clearSelection() }
+                )
             }
         }
     }
@@ -459,14 +465,21 @@ struct ProjectGridView: View {
 
     private func plainTap(_ ref: CellRef) {
         selectedCell = ref
-        selection.removeAll()
+        // A single cell is a selection of one, so the action bar appears for it too.
+        selection = [ref]
         selectionAnchor = ref
     }
 
     private func toggleSelection(_ ref: CellRef) {
-        if selection.contains(ref) { selection.remove(ref) } else { selection.insert(ref) }
+        if selection.contains(ref) {
+            selection.remove(ref)
+            // Keep the inspector in sync: point at another selected cell, or close.
+            if selectedCell == ref { selectedCell = selection.first }
+        } else {
+            selection.insert(ref)
+            selectedCell = ref
+        }
         selectionAnchor = ref
-        selectedCell = ref
     }
 
     private func extendSelection(to ref: CellRef) {
@@ -490,7 +503,13 @@ struct ProjectGridView: View {
 
     private func selectAll() { selection = Set(orderedCells) }
     private func invertSelection() { selection = Set(orderedCells).subtracting(selection) }
-    private func clearSelection() { selection.removeAll(); selectionAnchor = nil }
+
+    /// Fully deselect — clears the multi-selection and the inspector's cell.
+    private func clearSelection() {
+        selection.removeAll()
+        selectionAnchor = nil
+        selectedCell = nil
+    }
 
     private func generateSelection() {
         let created = selectedEmptyRefs.compactMap {
@@ -516,8 +535,8 @@ struct ProjectGridView: View {
         coordinator.cancel(jobIDs: inFlightJobIDs(in: refs))
         for ref in refs { store.deleteCell(promptID: ref.promptID, runID: ref.runID) }
         store.saveOrReport()
-        selection.subtract(refs)
-        if let selected = selectedCell, refs.contains(selected) { selectedCell = nil }
+        // Keep the selection: the cells still exist (now empty), so the user can
+        // immediately act on them again (e.g. Generate) without reselecting.
     }
 
     private func rankSelection(_ rank: CellRank) {
@@ -627,7 +646,7 @@ struct ProjectGridView: View {
     private func deleteCell(_ ref: CellRef) {
         store.deleteCell(promptID: ref.promptID, runID: ref.runID)
         store.saveOrReport()
-        if selectedCell == ref { selectedCell = nil }
+        // The cell stays selected — only its image was deleted, not the cell.
     }
 
     private func deleteRowImages(_ prompt: Prompt) {

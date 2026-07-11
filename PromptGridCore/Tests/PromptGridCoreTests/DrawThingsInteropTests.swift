@@ -45,6 +45,22 @@ struct DrawThingsInteropTests {
         #expect(try decodeMode("2") == 2)
     }
 
+    @Test("ControlNet mode decodes from Draw Things' controlImportance key")
+    func controlImportanceKey() throws {
+        // Draw Things exports the control mode under "controlImportance", not
+        // "controlMode" — the old key silently defaulted every control to balanced.
+        let json = #"{ "file": "depth_zoe.ckpt", "weight": 0.8, "guidanceStart": 0, "guidanceEnd": 1, "controlImportance": 2 }"#
+        let dto = try ProjectPackage.makeDecoder()
+            .decode(ControlConfigDTO.self, from: Data(json.utf8))
+        #expect(dto.file == "depth_zoe.ckpt")
+        #expect(dto.controlMode == 2)                       // ControlMode.control, not default balanced(0)
+        #expect(dto.controlConfig.controlMode == .control)
+
+        // Re-encodes under the same key Draw Things uses.
+        let encoded = String(data: try ProjectPackage.makeEncoder().encode(dto), encoding: .utf8)!
+        #expect(encoded.contains("\"controlImportance\" : 2"))
+    }
+
     @Test("Empty model-path fields become nil on the wire (disabled, not default)")
     func emptyModelPathsNormalizeToNil() throws {
         // Draw Things exports a disabled model as "" — but sending "" makes the

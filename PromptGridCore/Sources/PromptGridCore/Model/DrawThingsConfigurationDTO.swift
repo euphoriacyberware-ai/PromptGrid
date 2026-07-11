@@ -136,7 +136,9 @@ public struct ControlConfigDTO: Codable, Sendable, Equatable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case file, weight, guidanceStart, guidanceEnd, controlMode
+        case file, weight, guidanceStart, guidanceEnd
+        // Draw Things exports the control mode under the key `controlImportance`.
+        case controlMode = "controlImportance"
     }
 
     public init(from decoder: Decoder) throws {

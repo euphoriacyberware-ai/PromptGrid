@@ -8,7 +8,8 @@ PromptGrid talks to a Draw Things server over its gRPC API — the generation ha
 
 > **Note:** PromptGrid is a client for Draw Things. You need Draw Things installed with its gRPC server enabled (see [Requirements](#requirements)).
 
-> [!CAUTION]: This app is capable of generating very large batch jobs which can result in your account getting throttled by the Draw Things cloud service if used with 'bridge mode'. It is recommended you only run large batches with local generation.
+> [!CAUTION]
+This app is capable of generating very large batch jobs which can result in your account getting throttled by the Draw Things cloud service if used with 'bridge mode'. It is recommended you only run large batches with local generation.
 
 ---
 

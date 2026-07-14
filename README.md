@@ -87,8 +87,7 @@ The project is organized as:
 
 ### Handy details
 
-- **Reproducing a Draw Things image:** paste the full configuration, set the run's seed to the exact seed, and make sure the **seed mode** matches — these together determine the result.
-- **Reference images:** add one in the prompt editor for img2img / inpaint workflows.
+- **Reference images:** add one in the prompt editor for edit model workflows.
 - **Row & column tools:** right-click a prompt or a run header to insert, reorder, select, or clear it.
 - **Library location:** change where projects are stored in **Settings → Library** (e.g. point it at an iCloud Drive or Dropbox folder to sync — note image libraries can get large).
 
